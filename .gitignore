@@ -1,0 +1,22 @@
+#build directories
+cmake-build-debug/
+build/
+
+#CMake-generated
+CMakedfiles/
+CMakeCache.txt
+cmake_install.cmake
+MakeFile
+
+#Shader binaries
+shaders/*.spv
+
+#editor files
+.idea/
+.vscode/
+*.iml
+
+#OS-specific
+
+# Logs
+*.log
