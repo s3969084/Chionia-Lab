@@ -30,30 +30,39 @@ endif()
 file(GLOB_RECURSE SOURCES
         ${CMAKE_SOURCE_DIR}/src/*.cpp
         ${CMAKE_SOURCE_DIR}/src/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_coordinator/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_coordinator/*.hpp
         ${CMAKE_SOURCE_DIR}/engine/core/*.cpp
         ${CMAKE_SOURCE_DIR}/engine/core/*.hpp
         ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/*.cpp
         ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/*.hpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_surface/*.cpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_surface/*.hpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_physical_device/*.cpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_physical_device/*.hpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_logical_device/*.cpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_logical_device/*.hpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_swapchain/*.cpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_swapchain/*.hpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_render_pass/*.cpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_render_pass/*.hpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_frame_buffer/*.cpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_frame_buffer/*.hpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_command_pool/*.cpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_command_pool/*.hpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_command_buffers/*.cpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_command_buffers/*.hpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_sync_objects/*.cpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_sync_objects/*.hpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_pipeline_builder/*.cpp
-        ${CMAKE_SOURCE_DIR}/engine/vulkan_pipeline_builder/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_instance/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_instance/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_surface/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_surface/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_physical_device/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_physical_device/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_logical_device/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_logical_device/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_swapchain/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_swapchain/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_render_pass/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_render_pass/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_frame_buffer/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_frame_buffer/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_command_pool/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_command_pool/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_command_buffers/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_command_buffers/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_sync_objects/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_sync_objects/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_pipeline_builder/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_pipeline_builder/*.hpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_renderer/*.cpp
+        ${CMAKE_SOURCE_DIR}/engine/vulkan_backend/vulkan_renderer/*.hpp
+
 
 
 )
