@@ -96,6 +96,8 @@ namespace chionia {
     }
 
     void VulkanSwapchain::destroy(VkDevice logicalDevice) {
+
+
         for (auto view : imageViews_) {
             vkDestroyImageView(logicalDevice, view, nullptr);
         }

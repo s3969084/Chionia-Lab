@@ -15,6 +15,8 @@ namespace chionia {
         const std::string& vertShaderPath,
         const std::string& fragShaderPath) {
 
+
+
         // Create shader module
         vertShaderModule_ = createShaderModule(logicalDevice, vertShaderPath);
         fragShaderModule_ = createShaderModule(logicalDevice, fragShaderPath);
@@ -64,23 +66,31 @@ namespace chionia {
 
     VkShaderModule VulkanRenderer::createShaderModule(VkDevice logicalDevice, const std::string& filename) {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
-
         if (!file.is_open()) {
             throw std::runtime_error("❌ Failed to open shader file: " + filename);
         }
 
         size_t fileSize = static_cast<size_t>(file.tellg());
-        std::vector<char> buffer(fileSize);
+        if (fileSize % 4 != 0) {
+            throw std::runtime_error("❌ Shader file size is not aligned: " + filename);
+        }
+        std::vector<uint32_t> buffer(fileSize / 4);
+
         file.seekg(0);
-        file.read(buffer.data(), fileSize);
+        file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
         file.close();
 
         VkShaderModuleCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = buffer.size();
-        createInfo.pCode = reinterpret_cast<const uint32_t*>(buffer.data());
+        createInfo.codeSize = fileSize;
+        createInfo.pCode = buffer.data();
+
 
         VkShaderModule shaderModule;
+
+
+
+
         if (vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
             throw std::runtime_error("❌ Failed to create shader module from file: " + filename);
         }

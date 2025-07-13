@@ -46,6 +46,10 @@ namespace chionia {
         VulkanSyncObjects syncObjects_;
         VulkanRenderer renderer_;
 
+        const std::string shaderPath_Vert_ = "../shaders/point.vert.spv";
+        const std::string shaderPath_frag_ = "../shaders/point.frag.spv";
+
+
     };
 }
 

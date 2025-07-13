@@ -21,7 +21,7 @@ namespace chionia {
         commandPool_.create(logicalDevice_.get(), physicalDevice_.findGraphicsQueueFamily(instance_.get()));
 
         renderer_.create(logicalDevice_.get(), swapchain_.getExtent(), renderPass_.get(),
-            "shaders/point.vert.spv", "shaders/point.frag.spv");
+            shaderPath_Vert_, shaderPath_frag_);
 
         commandBuffers_.allocate(logicalDevice_.get(), commandPool_.get(), static_cast<uint32_t>(framebuffers_.getAll().size()));
         commandBuffers_.record(renderPass_.get(), framebuffers_.getAll(), swapchain_.getExtent(),
@@ -93,10 +93,11 @@ namespace chionia {
         renderer_.destroy(logicalDevice_.get());
         syncObjects_.destroy(logicalDevice_.get());
         commandBuffers_.free(logicalDevice_.get(), commandPool_.get());
-        commandPool_.destroy(logicalDevice_.get());
+
         framebuffers_.destroy(logicalDevice_.get());
         renderPass_.destroy(logicalDevice_.get());
         swapchain_.destroy(logicalDevice_.get());
+        commandPool_.destroy(logicalDevice_.get());
         logicalDevice_.destroy();
         surface_.destroy(instance_.get());
         debug_.cleanup(instance_.get());
