@@ -21,7 +21,7 @@ namespace chionia {
         commandPool_.create(logicalDevice_.get(), physicalDevice_.findGraphicsQueueFamily(instance_.get()));
 
         renderer_.create(logicalDevice_.get(), swapchain_.getExtent(), renderPass_.get(),
-            shaderPath_Vert_, shaderPath_frag_);
+            shaderPath_Vert, shaderPath_Frag);
 
         commandBuffers_.allocate(logicalDevice_.get(), commandPool_.get(), static_cast<uint32_t>(framebuffers_.getAll().size()));
         commandBuffers_.record(renderPass_.get(), framebuffers_.getAll(), swapchain_.getExtent(),

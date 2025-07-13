@@ -4,7 +4,7 @@ project(Chionia_Lab VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# === Vulkan SDK Paths ===
+# === Vulkan SDK ===
 set(VULKAN_SDK "/Users/angeloschristou/VulkanSDK/1.4.313.1/macOS")
 set(VULKAN_INCLUDE_DIR "${VULKAN_SDK}/include")
 set(VULKAN_LIBRARY "${VULKAN_SDK}/lib/libvulkan.1.dylib")
@@ -15,12 +15,12 @@ find_path(GLFW_INCLUDE_DIR GLFW/glfw3.h PATHS /opt/homebrew/include /usr/local/i
 find_library(GLFW_LIBRARY NAMES glfw PATHS /opt/homebrew/lib /usr/local/lib)
 
 if(NOT GLFW_INCLUDE_DIR OR NOT GLFW_LIBRARY)
-    message(FATAL_ERROR "GLFW not found. Install it via: brew install glfw")
+    message(FATAL_ERROR "❌ GLFW not found. Please install it: brew install glfw")
 endif()
 
 find_path(GLM_INCLUDE_DIR glm/glm.hpp PATHS /opt/homebrew/include /usr/local/include)
 if(NOT GLM_INCLUDE_DIR)
-    message(FATAL_ERROR "GLM not found. Install it via: brew install glm")
+    message(FATAL_ERROR "❌ GLM not found. Please install it: brew install glm")
 endif()
 
 # === Global Include Paths ===
@@ -31,13 +31,17 @@ include_directories(
 )
 
 # === Shader Compilation ===
-file(GLOB SHADER_FILES "${CMAKE_SOURCE_DIR}/src/shaders/*.vert" "${CMAKE_SOURCE_DIR}/src/shaders/*.frag")
+file(GLOB SHADER_FILES
+        "${CMAKE_SOURCE_DIR}/src/shaders/*.vert"
+        "${CMAKE_SOURCE_DIR}/src/shaders/*.frag"
+)
+
 set(SHADER_BINARY_DIR "${CMAKE_BINARY_DIR}/shaders")
 file(MAKE_DIRECTORY ${SHADER_BINARY_DIR})
 
 find_program(GLSLC_EXECUTABLE glslc HINTS "${VULKAN_SDK}/bin")
 if(NOT GLSLC_EXECUTABLE)
-    message(FATAL_ERROR "glslc not found. Ensure the Vulkan SDK is installed and accessible.")
+    message(FATAL_ERROR "❌ glslc not found. Ensure the Vulkan SDK is installed and in your PATH.")
 endif()
 
 foreach(SHADER_FILE ${SHADER_FILES})
@@ -48,7 +52,7 @@ foreach(SHADER_FILE ${SHADER_FILES})
             OUTPUT ${SPV}
             COMMAND ${GLSLC_EXECUTABLE} ${SHADER_FILE} -o ${SPV}
             DEPENDS ${SHADER_FILE}
-            COMMENT "🔹 Compiling shader: ${SHADER_FILE}"
+            COMMENT "🔹 Compiling shader: ${FILE_NAME}"
             VERBATIM
     )
 
@@ -57,6 +61,19 @@ endforeach()
 
 add_custom_target(Shaders ALL DEPENDS ${COMPILED_SHADERS})
 
-# === Subdirectories ===
-add_subdirectory(engine)
-add_subdirectory(src)
+# === Add Subdirectories ===
+add_subdirectory(src)  # Application code
+
+# === Define the Executable Target for the Application ===
+add_executable(Chionia_Lab ${CMAKE_SOURCE_DIR}/src/main.cpp)  # Add your main entry point
+
+# === Link Libraries to Final Executable ===
+target_link_libraries(Chionia_Lab
+        PRIVATE
+        chionia_engine   # Engine library
+        chionia_windowing # Link the windowing system
+        chionia_utils    # Link the utils library
+        ${GLFW_LIBRARY}
+        ${VULKAN_LIBRARY}
+        ${MOLTENVK_LIBRARY}
+)

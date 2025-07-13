@@ -1,7 +1,7 @@
 #ifndef CHIONIA_VULKAN_COORDINATOR_HPP
 #define CHIONIA_VULKAN_COORDINATOR_HPP
 
-#include "core/app_window.hpp"
+#include "../../windowing/app_window.hpp"
 #include "vulkan_backend/vulkan_instance.hpp"
 #include "vulkan_backend/VulkanDebugMessenger.hpp"
 #include "vulkan_backend/vulkan_surface.hpp"
@@ -46,8 +46,8 @@ namespace chionia {
         VulkanSyncObjects syncObjects_;
         VulkanRenderer renderer_;
 
-        const std::string shaderPath_Vert_ = "../shaders/point.vert.spv";
-        const std::string shaderPath_frag_ = "../shaders/point.frag.spv";
+        const std::string shaderPath_Vert = "shaders/point.vert.spv";
+        const std::string shaderPath_Frag = "shaders/point.frag.spv";
 
 
     };

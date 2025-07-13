@@ -1,45 +1,33 @@
-// src/utils/point_cloud_loader.cpp
-
 #include "point_cloud_loader.hpp"
 #include <fstream>
-#include <iostream>
+#include <nlohmann/json.hpp>
 
-namespace chionia {
+using json = nlohmann::json;
 
-    std::vector<LabeledPoint> PointCloudLoader::loadFromFile(const std::string& filepath) {
-        std::vector<LabeledPoint> points;
+std::vector<Point> PointCloudLoader::loadFromFile(const std::string& filePath) {
+    std::vector<Point> points;
+    std::ifstream file(filePath);
 
-        std::ifstream file(filepath);
-        if (!file.is_open()) {
-            std::cerr << "Failed to open file: " << filepath << std::endl;
-            return points;
-        }
-
-        nlohmann::json data;
-
-
-        try {
-            file >> data;
-        } catch (const std::exception& e) {
-            std::cerr << "JSON parsing error: " << e.what() << std::endl;
-            return points;
-        }
-
-        for (const auto& item : data) {
-            if (item.contains("id") && item.contains("x") && item.contains("y") && item.contains("z")) {
-                std::string id = item["id"];
-                float x = item["x"];
-                float y = item["y"];
-                float z = item["z"];
-                points.push_back({glm::vec4(x, y, z, 1.0f), id});
-            } else {
-                std::cerr << " skipping invalid point entry (missing id/x/y/z)" <<std::endl;
-            }
-        }
-
-        std::cout << "Loaded " << points.size() << "labeled points from " << filepath << std::endl;
-        return points;
-
-
+    if (!file.is_open()) {
+        throw std::runtime_error("❌ Failed to open point cloud file: " + filePath);
     }
+
+    json j;
+    file >> j;
+
+    for (const auto& entry : j) {
+        float x = entry.at("x").get<float>();
+        float y = entry.at("y").get<float>();
+        float z = entry.at("z").get<float>();
+
+        Point point;
+        point.position = glm::vec3(x, y, z);
+        point.color = glm::vec3(1.0f);
+
+        points.push_back(point);
+    }
+
+    return points;
+
+
 }
