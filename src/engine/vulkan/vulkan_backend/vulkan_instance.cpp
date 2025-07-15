@@ -7,6 +7,12 @@
 
 namespace chionia {
 
+#ifdef CHIONIA_DEBUG
+    const std::vector<const char*> VulkanInstance::kValidationLayers = {
+        "VK_LAYER_KHRONOS_validation"
+    };
+#endif
+
     VulkanInstance::~VulkanInstance() {
         destroy();
     }
@@ -31,10 +37,10 @@ namespace chionia {
 #ifdef CHIONIA_DEBUG
         if (enableValidation) {
             if (!checkValidationLayerSupport()) {
-                throw std::runtime_error("validation layers requested, but not available!");
+                throw std::runtime_error("Validation layers requested, but not available!");
             }
-            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers_.size());
-            createInfo.ppEnabledLayerNames = validationLayers_.data();
+            createInfo.enabledLayerCount = static_cast<uint32_t>(kValidationLayers.size());
+            createInfo.ppEnabledLayerNames = kValidationLayers.data();
         } else {
             createInfo.enabledLayerCount = 0;
             createInfo.ppEnabledLayerNames = nullptr;
@@ -46,9 +52,8 @@ namespace chionia {
 
         createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
-
         if (vkCreateInstance(&createInfo, nullptr, &instance_) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create vulkan instance!");
+            throw std::runtime_error("Failed to create Vulkan instance!");
         }
     }
 
@@ -57,7 +62,6 @@ namespace chionia {
             vkDestroyInstance(instance_, nullptr);
             instance_ = VK_NULL_HANDLE;
         }
-
     }
 
     VkInstance VulkanInstance::get() const {
@@ -82,18 +86,17 @@ namespace chionia {
 #endif
 
         return extensions;
-
     }
 
     bool VulkanInstance::checkValidationLayerSupport() const {
         uint32_t layerCount;
         vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
 
-
         std::vector<VkLayerProperties> availableLayers(layerCount);
         vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-        for (const char* layerName : validationLayers_) {
+#ifdef CHIONIA_DEBUG
+        for (const char* layerName : kValidationLayers) {
             bool layerFound = false;
             for (const auto& layerProperties : availableLayers) {
                 if (strcmp(layerName, layerProperties.layerName) == 0) {
@@ -103,6 +106,7 @@ namespace chionia {
             }
             if (!layerFound) return false;
         }
+#endif
 
         return true;
     }

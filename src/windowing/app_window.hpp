@@ -1,10 +1,7 @@
-// engine/core/app_window.hpp
-
 #pragma once
 
-#include <GLFW/glfw3.h>
 #include <string>
-#include <vector>
+#include <GLFW/glfw3.h>
 
 namespace chionia {
 
@@ -13,10 +10,10 @@ namespace chionia {
         AppWindow(int width, int height, const std::string& title);
         ~AppWindow();
 
+        GLFWwindow* getGLFWwindow() const;
         bool shouldClose() const;
         void pollEvents() const;
-
-        GLFWwindow* getGLFWwindow() const;
+        void destroy();  // Explicit manual destruction
 
     private:
         void initGLFW();
@@ -26,11 +23,6 @@ namespace chionia {
         int height_;
         std::string title_;
         GLFWwindow* window_;
-
-
-
-
     };
-
 
 }

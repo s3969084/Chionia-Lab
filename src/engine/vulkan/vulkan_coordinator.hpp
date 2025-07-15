@@ -1,7 +1,8 @@
-#ifndef CHIONIA_VULKAN_COORDINATOR_HPP
-#define CHIONIA_VULKAN_COORDINATOR_HPP
+#pragma once
 
-#include "../../windowing/app_window.hpp"
+// Window and Vulkan backend includes
+#include "windowing/app_window.hpp"
+
 #include "vulkan_backend/vulkan_instance.hpp"
 #include "vulkan_backend/VulkanDebugMessenger.hpp"
 #include "vulkan_backend/vulkan_surface.hpp"
@@ -20,8 +21,10 @@ namespace chionia {
     class VulkanCoordinator {
     public:
         void init();
-        void run();
+        void drawFrame();   // <- new: draw a single frame
         void cleanup();
+
+        const AppWindow& getWindow() const { return window_; } // <- new: access GLFW window
 
     private:
         static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
@@ -29,8 +32,7 @@ namespace chionia {
         size_t currentFrame_ = 0;
         uint32_t imageIndex_ = 0;
 
-
-
+        // Core components
         AppWindow window_{800, 600, "Chionia Engine"};
 
         VulkanInstance instance_;
@@ -46,12 +48,9 @@ namespace chionia {
         VulkanSyncObjects syncObjects_;
         VulkanRenderer renderer_;
 
+        // Shader paths
         const std::string shaderPath_Vert = "shaders/point.vert.spv";
         const std::string shaderPath_Frag = "shaders/point.frag.spv";
-
-
     };
+
 }
-
-#endif
-

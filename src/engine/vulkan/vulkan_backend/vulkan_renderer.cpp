@@ -1,5 +1,5 @@
-#include "vulkan_backend/vulkan_renderer.hpp"
-#include "vulkan_backend/vulkan_pipeline_builder.hpp"
+#include "vulkan_renderer.hpp"
+#include "vulkan_pipeline_builder.hpp"
 
 #include <iostream>
 #include <stdexcept>

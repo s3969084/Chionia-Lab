@@ -23,9 +23,8 @@ namespace chionia {
         bool checkValidationLayerSupport() const;
 
 #ifdef CHIONIA_DEBUG
-        const std::vector<const char*> validationLayers_ = { "VK_LAYER_KHRONOS_validation" };
+        static const std::vector<const char*> kValidationLayers;
 #endif
-
-
     };
+
 }
