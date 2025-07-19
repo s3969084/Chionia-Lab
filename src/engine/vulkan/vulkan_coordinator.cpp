@@ -46,35 +46,55 @@ namespace chionia {
     void VulkanCoordinator::drawFrame() {
         glfwPollEvents();
 
-        // Wait and reset fences
-        vkWaitForFences(logicalDevice_.get(), 1, &syncObjects_.getInFlightFence(currentFrame_), VK_TRUE, UINT64_MAX);
-        vkResetFences(logicalDevice_.get(), 1, &syncObjects_.getInFlightFence(currentFrame_));
+        // Wait and reset fence
+        syncObjects_.waitAndResetFence(logicalDevice_.get(), currentFrame_);
 
+        // Acquire next image
+        acquireNextImage();
+
+        // Submit command buffers & present frame
+        presentFrame();
+
+        currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
+    }
+
+    // These are helper functions
+    void VulkanCoordinator::acquireNextImage() {
         // Acquire image
         VkResult result = vkAcquireNextImageKHR(
             logicalDevice_.get(), swapchain_.get(), UINT64_MAX,
             syncObjects_.getImageAvailable(currentFrame_), VK_NULL_HANDLE, &imageIndex_
         );
-        if (result != VK_SUCCESS) throw std::runtime_error("❌ Failed to acquire swapchain image!");
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("❌ Failed to acquire swapchain image!");
+        }
+    }
 
-        // Submit draw command
+
+    void VulkanCoordinator::presentFrame() {
+
+        // Present Submit info
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
+        // Wait on Image Available Semaphore
         VkSemaphore waitSemaphores[] = { syncObjects_.getImageAvailable(currentFrame_) };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
 
+        // Specify the command buffer to submit
         VkCommandBuffer cmdBuffer = commandBuffers_.getAll()[imageIndex_];
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &cmdBuffer;
 
+        // Signal the render-finished semaphore
         VkSemaphore signalSemaphores[] = { syncObjects_.getRenderFinished(currentFrame_) };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
+        // Submit to Graphics Queue
         if (vkQueueSubmit(logicalDevice_.getGraphicsQueue(), 1, &submitInfo, syncObjects_.getInFlightFence(currentFrame_)) != VK_SUCCESS) {
             throw std::runtime_error("❌ Failed to submit draw command buffer!");
         }
@@ -89,12 +109,14 @@ namespace chionia {
         presentInfo.pSwapchains = swapchains;
         presentInfo.pImageIndices = &imageIndex_;
 
-        result = vkQueuePresentKHR(logicalDevice_.getPresentQueue(), &presentInfo);
-        if (result != VK_SUCCESS) throw std::runtime_error("❌ Failed to present swapchain image!");
-
-        currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
+        VkResult result = vkQueuePresentKHR(logicalDevice_.getPresentQueue(), &presentInfo);
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("❌ Failed to present swapchain image!");
+        }
     }
 
+
+    // Cleanup code
     void VulkanCoordinator::cleanup() {
         // Wait until all GPU operations are done
         vkDeviceWaitIdle(logicalDevice_.get());

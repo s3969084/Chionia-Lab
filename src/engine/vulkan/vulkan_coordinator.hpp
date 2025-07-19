@@ -62,6 +62,11 @@ namespace chionia {
         };
 
         VulkanVertexBuffer vertexBuffer_;
+
+        void acquireNextImage();
+        void presentFrame();
+
+
     };
 
 }

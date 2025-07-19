@@ -46,5 +46,10 @@ namespace chionia {
         return inFlightFences_[frameIndex];
     }
 
+    void VulkanSyncObjects::waitAndResetFence(VkDevice device, size_t frameIndex) {
+        vkWaitForFences(device, 1, &inFlightFences_[frameIndex], VK_TRUE, UINT64_MAX);
+        vkResetFences(device, 1, &inFlightFences_[frameIndex]);
+    }
+
 
 }
