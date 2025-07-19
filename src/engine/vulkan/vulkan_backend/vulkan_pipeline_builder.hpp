@@ -21,6 +21,8 @@ namespace chionia {
         // Utility function to create shader module from file
         static VkShaderModule createShaderModule(VkDevice device, const std::string& filename);
 
+        void setVertexInput(const VkVertexInputBindingDescription& binding, const std::vector<VkVertexInputAttributeDescription>& attributes);
+
     private:
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages_;
         VkPipelineInputAssemblyStateCreateInfo inputAssembly_{};
@@ -28,6 +30,12 @@ namespace chionia {
         VkRect2D scissor_{};
         VkPipelineLayout pipelineLayout_ = VK_NULL_HANDLE;
         VkRenderPass renderPass_ = VK_NULL_HANDLE;
+
+        VkVertexInputBindingDescription bindingDescription_{};
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions_;
+        bool vertexInputSet_ = false;
+
+
     };
 
 }

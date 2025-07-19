@@ -30,7 +30,9 @@ namespace chionia {
         const std::vector<VkFramebuffer>& framebuffers,
         VkExtent2D extent,
         VkPipeline pipeline,
-        VkPipelineLayout layout) {
+        VkPipelineLayout layout,
+        VkBuffer vertexBuffer,
+        uint32_t vertexCount) {
 
 
         for (size_t i = 0; i < commandBuffers_.size(); ++i) {
@@ -57,9 +59,15 @@ namespace chionia {
 
             vkCmdBeginRenderPass(cmdBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
             vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-            vkCmdDraw(cmdBuffer, 1, 1, 0, 0); //Draw 1 point
+            // Bind the Vertex Buffer
 
-            // No actual drawing yet, just start and end pass
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer, offsets);
+
+            // Draw based on actual vertex count
+            vkCmdDraw(cmdBuffer, vertexCount, 1, 0, 0);
+
+
             vkCmdEndRenderPass(cmdBuffer);
 
             if (vkEndCommandBuffer(cmdBuffer) != VK_SUCCESS) {

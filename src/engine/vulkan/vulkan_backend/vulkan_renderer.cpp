@@ -30,14 +30,13 @@ namespace chionia {
         }
 
         // Build graphical pipeline
-        VulkanPipelineBuilder builder;
-        builder.setShaderStages(vertShaderModule_, fragShaderModule_);
-        builder.setInputAssembly(VK_PRIMITIVE_TOPOLOGY_POINT_LIST);
-        builder.setViewportAndScissor(extent);
-        builder.setPipelineLayout(pipelineLayout_);
-        builder.setRenderPass(renderPass);
+        pipelineBuilder_.setShaderStages(vertShaderModule_, fragShaderModule_);
+        pipelineBuilder_.setInputAssembly(VK_PRIMITIVE_TOPOLOGY_POINT_LIST);
+        pipelineBuilder_.setViewportAndScissor(extent);
+        pipelineBuilder_.setPipelineLayout(pipelineLayout_);
+        pipelineBuilder_.setRenderPass(renderPass);
 
-        graphicsPipeline_ = builder.build(logicalDevice);
+        graphicsPipeline_ = pipelineBuilder_.build(logicalDevice);
 
         std::cout << "✅ VulkanRenderer pipeline created successfully.\n";
     }

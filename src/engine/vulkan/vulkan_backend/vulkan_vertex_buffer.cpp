@@ -1,100 +1,79 @@
-#include "vulkan_backend/vulkan_vertex_buffer.hpp"
+#include "vulkan_vertex_buffer.hpp"
 #include <stdexcept>
+#include <cstring>
 #include <iostream>
 
 namespace chionia {
 
-    VulkanVertexBuffer::VulkanVertexBuffer() = default;
+    void VulkanVertexBuffer::create(VkDevice logicalDevice, VkPhysicalDeviceMemoryProperties memProperties, const std::vector<Vertex>& vertices) {
 
-    VulkanVertexBuffer::~VulkanVertexBuffer() = default;
+        VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
-    void VulkanVertexBuffer::init(VkPhysicalDevice physicalDevice, VkDevice logicalDevice) {
-        // Hardcoded test Points (Phase 1)
-        vertices_ = {
-            { glm::vec3(-0.5f, -0.5f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f) },  // Red
-            { glm::vec3( 0.5f,  0.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f) }   // Green
-        };
-        vertexCount_ = static_cast<uint32_t>(vertices_.size());
-        create(physicalDevice, logicalDevice);
-    }
-
-    void VulkanVertexBuffer::destroy(VkDevice logicalDevice) {
-        if (vertexBuffer_ != VK_NULL_HANDLE) {
-            vkDestroyBuffer(logicalDevice, vertexBuffer_, nullptr);
-        }
-        if (vertexMemory_ != VK_NULL_HANDLE) {
-            vkFreeMemory(logicalDevice, vertexMemory_, nullptr);
-        }
-        vertexBuffer_ = VK_NULL_HANDLE;
-        vertexMemory_ = VK_NULL_HANDLE;
-    }
-
-    void VulkanVertexBuffer::bind(VkCommandBuffer commandBuffer) const {
-        VkDeviceSize offset = 0;
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer_, &offset);
-    }
-
-    uint32_t VulkanVertexBuffer::getVertexCount() const {
-        return vertexCount_;
-    }
-
-    void VulkanVertexBuffer::create(VkPhysicalDevice physicalDevice, VkDevice logicalDevice) {
-        VkDeviceSize bufferSize = sizeof(vertices_[0]) * vertices_.size();
-
-        // 1. Create the buffer
+        // Create the vertex buffer
         VkBufferCreateInfo bufferInfo{};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.size = bufferSize;
         bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
         bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        if (vkCreateBuffer(logicalDevice, &bufferInfo, nullptr, &vertexBuffer_) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to create vertex buffer!");
+        if (vkCreateBuffer(logicalDevice, &bufferInfo, nullptr, &buffer_) != VK_SUCCESS) {
+           throw std::runtime_error("❌ Failed to create vertex buffer.");
         }
 
-        // 2. Allocate memory
+        // Get memory requirements
         VkMemoryRequirements memRequirements;
-        vkGetBufferMemoryRequirements(logicalDevice, vertexBuffer_, &memRequirements);
+        vkGetBufferMemoryRequirements(logicalDevice, buffer_, &memRequirements);
 
+        // Allocate memory
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(
-            physicalDevice,
             memRequirements.memoryTypeBits,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-            );
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            memProperties);
 
-        if (vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &vertexMemory_) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to allocate vertex buffer memory!");
+        if (vkAllocateMemory(logicalDevice, &allocInfo, nullptr, &memory_) != VK_SUCCESS) {
+            throw std::runtime_error("❌ Failed to allocate vertex buffer memory.");
         }
 
-        // 3. Map and copy data
-        void* data;
-        vkMapMemory(logicalDevice, vertexMemory_, 0, bufferSize, 0, &data);
-        std::memcpy(data, vertices_.data(), (size_t)bufferSize);
-        vkUnmapMemory(logicalDevice, vertexMemory_);
+        // Bind memory
+        vkBindBufferMemory(logicalDevice, buffer_, memory_, 0);
 
-        // 4. Bind memory to buffer
-        vkBindBufferMemory(logicalDevice, vertexBuffer_, vertexMemory_, 0);
+        // Copy vertex data
+        void* data = nullptr;
+        vkMapMemory(logicalDevice, memory_, 0, bufferSize, 0, &data);
+        std::memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
+        vkUnmapMemory(logicalDevice, memory_);
+
+        std::cout << "✅ Vertex buffer created successfully with " << vertices.size() << " vertices.\n";
     }
 
-    uint32_t VulkanVertexBuffer::findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-        VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+    void VulkanVertexBuffer::destroy(VkDevice logicalDevice) {
+        if (memory_ != VK_NULL_HANDLE) {
+            vkFreeMemory(logicalDevice, memory_, nullptr);
+            memory_ = VK_NULL_HANDLE;
+        }
 
-        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-            if ((typeFilter & (1 << i)) &&
-                (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+        if (buffer_ != VK_NULL_HANDLE) {
+            vkDestroyBuffer(logicalDevice, buffer_, nullptr);
+            buffer_ = VK_NULL_HANDLE;
+        }
+    }
+
+    uint32_t VulkanVertexBuffer::findMemoryType(
+        uint32_t typeFilter,
+        VkMemoryPropertyFlags properties,
+        const VkPhysicalDeviceMemoryProperties& memProperties) {
+
+        for (uint32_t i = 0; i < memProperties.memoryTypeCount; ++i) {
+            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
                 return i;
-                }
+            }
         }
 
-        throw std::runtime_error("❌ Failed to find suitable memory type!");
+        throw std::runtime_error("❌ Failed to find suitable memory type for vertex buffer.");
+
     }
-
-
-
-
 
 }

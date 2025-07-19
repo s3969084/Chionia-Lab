@@ -15,9 +15,11 @@ namespace chionia {
         VkPhysicalDevice get() const;
 
         uint32_t findGraphicsQueueFamily(VkInstance instance) const;
+        const VkPhysicalDeviceMemoryProperties& getMemoryProperties() const { return memoryProperties_;}
 
     private:
         VkPhysicalDevice physicalDevice_ = VK_NULL_HANDLE;
+        VkPhysicalDeviceMemoryProperties memoryProperties_;
 
         bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
     };

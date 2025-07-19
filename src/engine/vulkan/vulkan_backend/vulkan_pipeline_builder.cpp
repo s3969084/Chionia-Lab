@@ -6,6 +6,16 @@
 
 namespace chionia {
 
+    void VulkanPipelineBuilder::setVertexInput(
+        const VkVertexInputBindingDescription &binding,
+        const std::vector<VkVertexInputAttributeDescription> &attributes) {
+
+        bindingDescription_ = binding;
+        attributeDescriptions_ = attributes;
+        vertexInputSet_ = true;
+    }
+
+
     VkShaderModule VulkanPipelineBuilder::createShaderModule(VkDevice logicalDevice, const std::string& filename) {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
         if (!file.is_open()) {
@@ -114,8 +124,11 @@ namespace chionia {
 
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertexInputInfo.vertexBindingDescriptionCount = 0;
-        vertexInputInfo.vertexAttributeDescriptionCount = 0;
+        vertexInputInfo.vertexBindingDescriptionCount = vertexInputSet_ ? 1 : 0;
+        vertexInputInfo.pVertexBindingDescriptions = vertexInputSet_ ? &bindingDescription_ : nullptr;
+
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions_.size());
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions_.data();
 
         VkGraphicsPipelineCreateInfo pipelineInfo{};
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;

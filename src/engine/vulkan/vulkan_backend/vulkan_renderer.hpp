@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 
+#include "vulkan_pipeline_builder.hpp"
+
 namespace chionia {
 
     class VulkanRenderer {
@@ -16,6 +18,8 @@ namespace chionia {
             VkRenderPass renderPass,
             const std::string& vertShaderPath,
             const std::string& fragShaderPath);
+
+        VulkanPipelineBuilder& getPipelineBuilder() { return pipelineBuilder_; }
 
         void destroy(VkDevice logicalDevice);
 
@@ -30,7 +34,11 @@ namespace chionia {
         VkShaderModule vertShaderModule_ = VK_NULL_HANDLE;
         VkShaderModule fragShaderModule_ = VK_NULL_HANDLE;
 
+        VulkanPipelineBuilder pipelineBuilder_;
+
         static VkShaderModule createShaderModule(VkDevice logicalDevice, const std::string& filename);
+
+
 
 
 

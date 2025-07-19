@@ -1,6 +1,9 @@
 #version 450
 
+layout(location = 0) in uint id;
+layout(location = 1) in vec3 inPosition;
+
 void main() {
-    gl_Position = vec4(0.0, 0.0, 0.0, 1.0); // Center of the screen
-    gl_PointSize = 20.0; // Make it visible
+    gl_Position = vec4(inPosition, 1.0);
+    gl_PointSize = 10.0;
 }

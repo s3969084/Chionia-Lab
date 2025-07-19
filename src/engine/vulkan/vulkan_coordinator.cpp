@@ -22,11 +22,21 @@ namespace chionia {
 
         commandPool_.create(logicalDevice_.get(), physicalDevice_.findGraphicsQueueFamily(instance_.get()));
 
+
+
+        vertexBuffer_.create(logicalDevice_.get(), physicalDevice_.getMemoryProperties(), demoVertices);
+
+        auto bindingDesc = vertexBuffer_.getBindingDescription();
+        auto attrDescs = vertexBuffer_.getAttributeDescriptions();
+        renderer_.getPipelineBuilder().setVertexInput(bindingDesc, { attrDescs.begin(), attrDescs.end()});
+
         renderer_.create(logicalDevice_.get(), swapchain_.getExtent(), renderPass_.get(), shaderPath_Vert, shaderPath_Frag);
 
         commandBuffers_.allocate(logicalDevice_.get(), commandPool_.get(), static_cast<uint32_t>(framebuffers_.getAll().size()));
         commandBuffers_.record(renderPass_.get(), framebuffers_.getAll(), swapchain_.getExtent(),
-                               renderer_.getPipeline(), renderer_.getPipelineLayout());
+                               renderer_.getPipeline(), renderer_.getPipelineLayout(), vertexBuffer_.getBuffer(),
+                               static_cast<uint32_t>(demoVertices.size())
+                               );
 
         syncObjects_.create(logicalDevice_.get(), MAX_FRAMES_IN_FLIGHT);
 
@@ -93,6 +103,7 @@ namespace chionia {
         renderer_.destroy(logicalDevice_.get());
         syncObjects_.destroy(logicalDevice_.get());
         commandBuffers_.free(logicalDevice_.get(), commandPool_.get());
+        vertexBuffer_.destroy(logicalDevice_.get());
 
         framebuffers_.destroy(logicalDevice_.get());
         renderPass_.destroy(logicalDevice_.get());

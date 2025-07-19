@@ -28,6 +28,8 @@ namespace chionia {
 
         std::cout << "✅ Vulkan physical device selected.\n";
 
+        vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &memoryProperties_);
+
     }
 
     bool VulkanPhysicalDevice::isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
