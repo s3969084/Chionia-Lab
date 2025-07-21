@@ -64,10 +64,10 @@ namespace chionia {
         }
 
         //Retrieve swapchain images
-        uint32_t actualImageCount;
-        vkGetSwapchainImagesKHR(logicalDevice, swapchain_, &actualImageCount, nullptr);
-        images_.resize(actualImageCount);
-        vkGetSwapchainImagesKHR(logicalDevice, swapchain_, &actualImageCount, images_.data());
+
+        vkGetSwapchainImagesKHR(logicalDevice, swapchain_, &imageCount_, nullptr);
+        images_.resize(imageCount_);
+        vkGetSwapchainImagesKHR(logicalDevice, swapchain_, &imageCount_, images_.data());
 
         // Create image views
         imageViews_.resize(images_.size());

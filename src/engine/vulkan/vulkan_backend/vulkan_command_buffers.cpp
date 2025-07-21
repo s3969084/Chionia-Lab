@@ -32,7 +32,9 @@ namespace chionia {
         VkPipeline pipeline,
         VkPipelineLayout layout,
         VkBuffer vertexBuffer,
-        uint32_t vertexCount) {
+        uint32_t vertexCount,
+        const std::vector<VkDescriptorSet>& descriptorSets
+        ) {
 
 
         for (size_t i = 0; i < commandBuffers_.size(); ++i) {
@@ -59,8 +61,19 @@ namespace chionia {
 
             vkCmdBeginRenderPass(cmdBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
             vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-            // Bind the Vertex Buffer
 
+            // Bind the Descriptor Sets
+            vkCmdBindDescriptorSets(
+                cmdBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                layout,
+                0, 1,
+                &descriptorSets[i], // one per frame
+                0,
+                nullptr
+                );
+
+            // Bind the Vertex Buffer
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer, offsets);
 
@@ -75,7 +88,7 @@ namespace chionia {
             }
         }
 
-        std::cout << "✅ Vulkan command buffers recorded.\n";
+       // std::cout << "✅ Vulkan command buffers recorded.\n";
 
     }
 

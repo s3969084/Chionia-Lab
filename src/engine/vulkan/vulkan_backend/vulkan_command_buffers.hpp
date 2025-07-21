@@ -19,7 +19,8 @@ namespace chionia {
             VkPipeline pipeline,
             VkPipelineLayout layout,
             VkBuffer vertexBuffer,
-            uint32_t vertexCount
+            uint32_t vertexCount,
+            const std::vector<VkDescriptorSet>& descriptorSets
             );
 
         const std::vector<VkCommandBuffer>& getAll() const { return commandBuffers_; }
@@ -28,6 +29,8 @@ namespace chionia {
     private:
 
         std::vector<VkCommandBuffer> commandBuffers_;
+
+
 
 
     };

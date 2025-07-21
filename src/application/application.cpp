@@ -1,8 +1,9 @@
 #include "application.hpp"
-#include "utils/point_cloud_loader.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
+
+#include "utils/point_vertex_converter.hpp"
 
 namespace chionia {
 
@@ -16,11 +17,14 @@ namespace chionia {
             vk_.init();
 
             // Allow terminal to trigger point cloud loading
-            terminal_.setLoadCallback([](const std::string& filename) {
+            terminal_.setLoadCallback([this](const std::string& filename) {
                 try {
                     auto points = PointCloudLoader::loadFromFile(filename);
-                    std::cout << "✅ Loaded " << points.size() << " points from " << filename << "\n";
-                    // TODO: forward to Vulkan (or other renderer) here
+                    auto vertices = chionia::utils::PointVertexConverter::convertPointsToVertices(points);
+                    std::cout << "✅ Loaded " << vertices.size() << " vertices from " << filename << "\n";
+                    // Forward points to vulkan
+                    vk_.updateVertices(vertices);
+
                 } catch (const std::exception& e) {
                     std::cerr << "❌ Failed to load file: " << e.what() << "\n";
                 }

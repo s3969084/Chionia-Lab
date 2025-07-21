@@ -16,13 +16,15 @@ std::vector<Point> PointCloudLoader::loadFromFile(const std::string& filePath) {
     file >> j;
 
     for (const auto& entry : j) {
+        std::string id = entry.at("id").get<std::string>();
         float x = entry.at("x").get<float>();
         float y = entry.at("y").get<float>();
         float z = entry.at("z").get<float>();
 
         Point point;
+        point.id = id;
         point.position = glm::vec3(x, y, z);
-        point.color = glm::vec3(1.0f);
+        //point.color = glm::vec3(1.0f); // next update
 
         points.push_back(point);
     }

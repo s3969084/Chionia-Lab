@@ -43,6 +43,16 @@ namespace chionia {
         void create(VkDevice logicalDevice, VkPhysicalDeviceMemoryProperties memProperties, const std::vector<Vertex>& vertices);
         void destroy(VkDevice logicalDevice);
 
+        void updateData(VkDevice logicalDevice, VkPhysicalDeviceMemoryProperties memProperties, const std::vector<Vertex>& newVertices) {
+
+            // Destroy old buffer and memory
+            destroy(logicalDevice);
+            // Save new vertices
+            vertices_ = newVertices;
+            //Re-create the buffer with new data
+            create(logicalDevice, memProperties, vertices_);
+        }
+
         VkBuffer getBuffer() const { return buffer_;}
         uint32_t getSize() const { return static_cast<uint32_t>(vertices_.size()); }
 

@@ -21,9 +21,27 @@ namespace chionia {
         vertShaderModule_ = createShaderModule(logicalDevice, vertShaderPath);
         fragShaderModule_ = createShaderModule(logicalDevice, fragShaderPath);
 
+        VkDescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboLayoutBinding.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutCreateInfo layoutInfoDS{};
+        layoutInfoDS.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfoDS.bindingCount = 1;
+        layoutInfoDS.pBindings = &uboLayoutBinding;
+
+        if (vkCreateDescriptorSetLayout(logicalDevice, &layoutInfoDS, nullptr, &descriptorSetLayout_) != VK_SUCCESS) {
+            throw std::runtime_error("❌ Failed to create descriptor set layout!");
+        }
+
         // Create pipeline layout
         VkPipelineLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layoutInfo.setLayoutCount = 1;
+        layoutInfo.pSetLayouts = &descriptorSetLayout_;
 
         if (vkCreatePipelineLayout(logicalDevice, &layoutInfo, nullptr, &pipelineLayout_) != VK_SUCCESS) {
             throw std::runtime_error("❌ Failed to create pipeline layout!");
@@ -42,6 +60,12 @@ namespace chionia {
     }
 
     void VulkanRenderer::destroy(VkDevice logicalDevice) {
+
+         if (descriptorSetLayout_ != VK_NULL_HANDLE) {
+             vkDestroyDescriptorSetLayout(logicalDevice, descriptorSetLayout_, nullptr);
+             descriptorSetLayout_ = VK_NULL_HANDLE;
+         }
+
         if (graphicsPipeline_ != VK_NULL_HANDLE) {
             vkDestroyPipeline(logicalDevice, graphicsPipeline_, nullptr);
             graphicsPipeline_ = VK_NULL_HANDLE;

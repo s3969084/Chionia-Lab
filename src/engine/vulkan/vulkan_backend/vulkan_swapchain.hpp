@@ -21,6 +21,8 @@ namespace chionia {
         VkExtent2D getExtent() const {return extent_; }
         VkFormat getImageFormat() const { return imageFormat_;}
 
+        uint32_t getImageCount() const { return imageCount_; }
+
     private:
         VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
         std::vector<VkImage> images_;
@@ -32,5 +34,7 @@ namespace chionia {
         VkSurfaceFormatKHR chooseSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& formats);
         VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& modes);
         VkExtent2D chooseExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwindow* window_);
+
+        uint32_t imageCount_ = 0;
     };
 }

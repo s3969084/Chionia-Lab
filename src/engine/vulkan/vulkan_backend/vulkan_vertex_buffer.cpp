@@ -46,7 +46,7 @@ namespace chionia {
         std::memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
         vkUnmapMemory(logicalDevice, memory_);
 
-        std::cout << "✅ Vertex buffer created successfully with " << vertices.size() << " vertices.\n";
+        //std::cout << "✅ Vertex buffer created successfully with " << vertices.size() << " vertices.\n";
     }
 
     void VulkanVertexBuffer::destroy(VkDevice logicalDevice) {
@@ -75,5 +75,7 @@ namespace chionia {
         throw std::runtime_error("❌ Failed to find suitable memory type for vertex buffer.");
 
     }
+
+
 
 }

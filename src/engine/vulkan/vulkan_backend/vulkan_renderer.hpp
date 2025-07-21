@@ -20,6 +20,7 @@ namespace chionia {
             const std::string& fragShaderPath);
 
         VulkanPipelineBuilder& getPipelineBuilder() { return pipelineBuilder_; }
+        VkDescriptorSetLayout getDescriptorSetLayout() const { return descriptorSetLayout_; }
 
         void destroy(VkDevice logicalDevice);
 
@@ -27,6 +28,8 @@ namespace chionia {
         VkPipelineLayout getPipelineLayout() const { return pipelineLayout_;}
         VkShaderModule getVertShader() const { return vertShaderModule_; }
         VkShaderModule getFragShader() const { return fragShaderModule_; }
+
+
 
     private:
         VkPipeline graphicsPipeline_ = VK_NULL_HANDLE;
@@ -38,6 +41,7 @@ namespace chionia {
 
         static VkShaderModule createShaderModule(VkDevice logicalDevice, const std::string& filename);
 
+        VkDescriptorSetLayout descriptorSetLayout_ = VK_NULL_HANDLE;
 
 
 

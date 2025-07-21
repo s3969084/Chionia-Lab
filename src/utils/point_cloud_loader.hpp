@@ -6,8 +6,9 @@
 
 struct Point {
 
+    std::string id;
     glm::vec3 position;
-    glm::vec3 color;
+    //glm::vec3 color;  // next update
 
 };
 
