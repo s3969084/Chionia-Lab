@@ -30,7 +30,7 @@ namespace chionia {
                 }
             });
 
-            terminal_.start();  // Start input thread
+            terminal_.start();  // Start an input thread
 
             // Main render loop
             while (!terminal_.shouldExit() && !vk_.getWindow().shouldClose()) {
@@ -44,7 +44,7 @@ namespace chionia {
                 std::cin.setstate(std::ios::eofbit);   // Prevent blocking read
             }
 
-            // Cleanup Vulkan before waiting for terminal
+            // Clean up Vulkan before waiting for the terminal
             vk_.cleanup();
             terminal_.stop();
 

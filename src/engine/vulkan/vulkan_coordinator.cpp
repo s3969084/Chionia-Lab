@@ -96,14 +96,14 @@ namespace chionia {
 
         // --- 3D Infinity Animation --- testing
         std::vector<Vertex> newVertices;
-        const int numPoints = 150;  // smoothness
+        const int numPoints = 400;  // smoothness
         float t = glfwGetTime() * 0.10f;
 
         for (int i = 0; i < numPoints; ++i) {
 
             float offset = (float)i / numPoints * glm::two_pi<float>();
-            float scale = 0.75f;  // Adjust size
-            float speed = 1.0f;
+            float scale = 1.0f;  // Adjust size
+            float speed = 0.3f;
 
             float x = scale * sin(speed * t + offset);
             float y = scale * sin((speed * t + offset) * 2.0f) * 0.5f;
@@ -143,33 +143,34 @@ namespace chionia {
             }
         }
 
-        // Update uniform buffer
+        // Testing Code Starts here
 
-        rotatingAngle_ += 0.01f;  // for testing
+
 
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(45.0f), glm::vec3(1, 0, 0)); // for testing
-       // ubo.model = glm::mat4(1.0f); // Identity for now
-        ubo.view = glm::lookAt(glm::vec3(1.5f, 1.5f, 1.5f), glm::vec3(0,0,0), glm::vec3(0,1,0));
+        ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0, 0, 1)); // rotate 90 degrees around the z axis
+        ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.5f), glm::vec3(0,0,0), glm::vec3(0,1,0));
         ubo.projection = glm::perspective(glm::radians(45.0f),
             static_cast<float>(swapchain_.getExtent().width) / swapchain_.getExtent().height,
             0.1f, 10.0f);
         ubo.projection[1][1] *= -1; // Invert Y axis
 
-
+        // testing code ends here
 
 
         // Acquire next image
         acquireNextImage();
 
+        // update after you have acquired the next image
         uniformBuffer_.update(logicalDevice_.get(), currentFrame_, ubo);
 
 
-        // Submit command buffers & present frame
+        // Submit command buffers and present the frame
         presentFrame();
 
         currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
     }
+
 
     // These are helper functions
     void VulkanCoordinator::acquireNextImage() {
