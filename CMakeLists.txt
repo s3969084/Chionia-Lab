@@ -38,7 +38,7 @@ include_directories(
         ${GLFW_INCLUDE_DIR}
         ${GLM_INCLUDE_DIR}
         ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/src/engine/vulkan
+        ${CMAKE_SOURCE_DIR}/src/engine/transform
 )
 
 # === Shader Compilation ===

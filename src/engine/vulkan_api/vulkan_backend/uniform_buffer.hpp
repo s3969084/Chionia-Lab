@@ -4,13 +4,10 @@
 #include <glm/glm.hpp>
 #include <vector>
 
+#include "engine/buffer_management/uniform_buffer.hpp"
+
 namespace chionia {
 
-    struct UniformBufferObject {
-        glm::mat4 model;
-        glm::mat4 view;
-        glm::mat4 projection;
-    };
 
     class UniformBuffer {
     public:

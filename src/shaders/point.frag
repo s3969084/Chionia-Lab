@@ -14,7 +14,7 @@ void main() {
 
     // Smoothing the edge for anti-aliasing
     float radius = 1.0;
-    float feather = 0.6; // tweak for softer or harder edge
+    float feather = 0.06; // tweak for softer or harder edge
 
     // Distance from edge (0 at edge, negative inside, positive outside)
     float edgeDist = sqrt(dist) - radius;

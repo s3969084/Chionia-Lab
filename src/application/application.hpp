@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/vulkan/vulkan_coordinator.hpp"
+#include "engine/vulkan_api/vulkan_coordinator.hpp"
 #include "utils/terminal_window.hpp"
 
 

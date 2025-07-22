@@ -1,7 +1,7 @@
 #pragma once
 
 #include "point_cloud_loader.hpp"
-#include "vulkan_backend/vulkan_vertex_buffer.hpp"
+#include "engine/buffer_management/vertex_buffer.hpp"
 #include <vector>
 
 namespace chionia::utils {

@@ -26,6 +26,8 @@
 #include "vulkan_backend/vulkan_vertex_buffer.hpp"
 #include "vulkan_backend/uniform_buffer.hpp"
 
+#include "engine/transform/camera.hpp"
+
 namespace chionia {
 
     class VulkanCoordinator {

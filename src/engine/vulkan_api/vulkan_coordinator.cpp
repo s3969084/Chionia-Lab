@@ -103,7 +103,7 @@ namespace chionia {
 
             float offset = (float)i / numPoints * glm::two_pi<float>();
             float scale = 1.0f;  // Adjust size
-            float speed = 0.3f;
+            float speed = 1.0f;
 
             float x = scale * sin(speed * t + offset);
             float y = scale * sin((speed * t + offset) * 2.0f) * 0.5f;
@@ -143,19 +143,16 @@ namespace chionia {
             }
         }
 
-        // Testing Code Starts here
-
-
+        // Initial state
+        Camera camera;
 
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), glm::radians(0.0f), glm::vec3(0, 0, 1)); // rotate 90 degrees around the z axis
-        ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 2.5f), glm::vec3(0,0,0), glm::vec3(0,1,0));
-        ubo.projection = glm::perspective(glm::radians(45.0f),
+        ubo.model = glm::mat4(1.0f);  // No model transformation applied
+        ubo.view = camera.getViewMatrix();
+        ubo.projection = camera.getProjectionMatrix(
             static_cast<float>(swapchain_.getExtent().width) / swapchain_.getExtent().height,
-            0.1f, 10.0f);
-        ubo.projection[1][1] *= -1; // Invert Y axis
-
-        // testing code ends here
+            true // Flip Y for Vulkan
+        );
 
 
         // Acquire next image
