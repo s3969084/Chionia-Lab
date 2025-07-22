@@ -24,7 +24,7 @@
 #include "vulkan_backend/vulkan_sync_objects.hpp"
 #include "vulkan_backend/vulkan_renderer.hpp"
 #include "vulkan_backend/vulkan_vertex_buffer.hpp"
-#include "vulkan_backend/uniform_buffer.hpp"
+#include "vulkan_backend/vulkan_uniform_buffer.hpp"
 
 #include "engine/transform/camera.hpp"
 
