@@ -3,9 +3,13 @@
 #include <iostream>
 #include <chrono>
 
+#include "engine/buffer_management/point_vertex_converter.hpp"
+#include "utils/json_model_loader.hpp"
+
 namespace chionia {
 
     void VulkanCoordinator::init() {
+        std::cout << "[Init] Starting Vulkan initialization...\n";
         instance_.create("Chionia Engine", true);
         debug_.setup(instance_.get());
         surface_.create(window_.getGLFWwindow(), instance_.get());
@@ -32,8 +36,16 @@ namespace chionia {
         if (vkCreateDescriptorPool(logicalDevice_.get(), &poolInfo, nullptr, &descriptorPool_) != VK_SUCCESS)
             throw std::runtime_error("Failed to create descriptor pool!");
 
-        generateTestPoints();
-        vertexBuffer_.create(logicalDevice_.get(), physicalDevice_.getMemoryProperties(), commandPool_.get(), logicalDevice_.getGraphicsQueue(), demoVertices);
+
+
+        if (!activeVertices.empty()) {
+            vertexBuffer_.create(
+                logicalDevice_.get(),
+                physicalDevice_.getMemoryProperties(),
+                commandPool_.get(),
+                logicalDevice_.getGraphicsQueue(),
+                activeVertices);
+        }
 
         auto bindingDesc = vertexBuffer_.getBindingDescription();
         auto attrDescs = vertexBuffer_.getAttributeDescriptions();
@@ -44,12 +56,17 @@ namespace chionia {
         uniformBuffer_.createDescriptorSets(logicalDevice_.get(), descriptorPool_, renderer_.getDescriptorSetLayout(), swapchain_.getImageCount());
 
         commandBuffers_.allocate(logicalDevice_.get(), commandPool_.get(), static_cast<uint32_t>(framebuffers_.getAll().size()));
+
+        bool hasData = vertexBuffer_.getBuffer() != VK_NULL_HANDLE && !activeVertices.empty();
         commandBuffers_.record(renderPass_.get(), framebuffers_.getAll(), swapchain_.getExtent(),
                                renderer_.getPipeline(), renderer_.getPipelineLayout(),
-                               vertexBuffer_.getBuffer(), static_cast<uint32_t>(demoVertices.size()),
-                               uniformBuffer_.getDescriptorSets());
+                               vertexBuffer_.getBuffer(), static_cast<uint32_t>(activeVertices.size()),
+                               uniformBuffer_.getDescriptorSets(),
+                               !hasData);
 
         syncObjects_.create(logicalDevice_.get(), MAX_FRAMES_IN_FLIGHT);
+
+        std::cout << "[Init] VulkanCoordinator initialized successfully.\n";
     }
 
     void VulkanCoordinator::drawFrame() {
@@ -73,6 +90,35 @@ namespace chionia {
             throw std::runtime_error("Failed to acquire swapchain image!");
         }
 
+        // check if new points data is pending
+        if (vertexUpdatePending_) {
+            std::lock_guard<std::mutex> lock(vertexUpdateMutex_);
+            activeVertices = pendingVertices_;
+            vertexUpdatePending_ = false;
+
+            vertexBuffer_.destroy();
+            vertexBuffer_.create(
+                logicalDevice_.get(),
+                physicalDevice_.getMemoryProperties(),
+                commandPool_.get(),
+                logicalDevice_.getGraphicsQueue(),
+                activeVertices);
+
+            commandBuffers_.record(
+                renderPass_.get(),
+                framebuffers_.getAll(),
+                swapchain_.getExtent(),
+                renderer_.getPipeline(),
+                renderer_.getPipelineLayout(),
+                vertexBuffer_.getBuffer(),
+                static_cast<uint32_t>(activeVertices.size()),
+                uniformBuffer_.getDescriptorSets(),
+                false);
+
+            std::cout << "[Vertex Reload] New vertex data loaded & command buffers re-recorded.\n";
+
+        }
+
         updateUniforms(imageIndex_);
         presentFrame(imageIndex_, currentFrame_);
         currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -82,7 +128,7 @@ namespace chionia {
         auto now = std::chrono::high_resolution_clock::now();
         float elapsed = std::chrono::duration<float>(now - fpsLastTime_).count();
         if (elapsed >= 1.0f) {
-            std::cout << "🧭 FPS: " << fpsFrameCount_ << "\n";
+          //  std::cout << "🧭 FPS: " << fpsFrameCount_ << "\n";
             fpsFrameCount_ = 0;
             fpsLastTime_ = now;
         }
@@ -130,18 +176,6 @@ namespace chionia {
         }
     }
 
-    void VulkanCoordinator::generateTestPoints() {
-        const int gridSize = 400;
-        int id = 0;
-        for (int x = -gridSize; x <= gridSize; ++x) {
-            for (int y = -gridSize; y <= gridSize; ++y) {
-                float xf = static_cast<float>(x) / gridSize;
-                float yf = static_cast<float>(y) / gridSize;
-                demoVertices.push_back({ static_cast<uint32_t>(id++), glm::vec3(xf, yf, 0.0f) });
-            }
-        }
-    }
-
     void VulkanCoordinator::updateVertices(const std::vector<Vertex>& newVertices) {
         std::lock_guard<std::mutex> lock(vertexUpdateMutex_);
         pendingVertices_ = newVertices;
@@ -174,10 +208,14 @@ namespace chionia {
         framebuffers_.create(logicalDevice_.get(), renderPass_.get(), swapchain_.getImageViews(), swapchain_.getExtent());
 
         commandBuffers_.allocate(logicalDevice_.get(), commandPool_.get(), static_cast<uint32_t>(framebuffers_.getAll().size()));
+
+
+        bool hasData = vertexBuffer_.getBuffer() != VK_NULL_HANDLE && !activeVertices.empty();
         commandBuffers_.record(renderPass_.get(), framebuffers_.getAll(), swapchain_.getExtent(),
                                renderer_.getPipeline(), renderer_.getPipelineLayout(),
                                vertexBuffer_.getBuffer(), static_cast<uint32_t>(vertexBuffer_.getVertexCount()),
-                               uniformBuffer_.getDescriptorSets());
+                               uniformBuffer_.getDescriptorSets(),
+                               !hasData);
 
         window_.resetResizeFlag();
         currentFrame_ = 0;

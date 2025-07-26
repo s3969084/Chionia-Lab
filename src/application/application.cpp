@@ -26,7 +26,7 @@ namespace chionia {
                     vk_.updateVertices(vertices);
 
                 } catch (const std::exception& e) {
-                    std::cerr << "❌ Failed to load file: " << e.what() << "\n";
+                    std::cerr << "Failed to load file: " << e.what() << "\n";
                 }
             });
 

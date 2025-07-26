@@ -33,7 +33,8 @@ namespace chionia {
         VkPipelineLayout layout,
         VkBuffer vertexBuffer,
         uint32_t vertexCount,
-        const std::vector<VkDescriptorSet>& descriptorSets
+        const std::vector<VkDescriptorSet>& descriptorSets,
+        bool skipDrawing
         ) {
 
 
@@ -60,25 +61,28 @@ namespace chionia {
             renderPassInfo.pClearValues = &clearColor;
 
             vkCmdBeginRenderPass(cmdBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-            vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-            // Bind the Descriptor Sets
-            vkCmdBindDescriptorSets(
-                cmdBuffer,
-                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                layout,
-                0, 1,
-                &descriptorSets[i], // one per frame
-                0,
-                nullptr
-                );
+            if (!skipDrawing) {
+                vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-            // Bind the Vertex Buffer
-            VkDeviceSize offsets[] = {0};
-            vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer, offsets);
+                // Bind the Descriptor Sets
+                vkCmdBindDescriptorSets(
+                    cmdBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    layout,
+                    0, 1,
+                    &descriptorSets[i], // one per frame
+                    0,
+                    nullptr
+                    );
 
-            // Draw based on actual vertex count
-            vkCmdDraw(cmdBuffer, vertexCount, 1, 0, 0);
+                // Bind the Vertex Buffer
+                VkDeviceSize offsets[] = {0};
+                vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &vertexBuffer, offsets);
+
+                // Draw based on actual vertex count
+                vkCmdDraw(cmdBuffer, vertexCount, 1, 0, 0);
+            }
 
 
             vkCmdEndRenderPass(cmdBuffer);

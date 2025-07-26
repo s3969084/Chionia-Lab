@@ -63,7 +63,7 @@ namespace chionia {
         // State
         Camera camera_;
         uint32_t imageIndex_ = 0;
-        std::vector<Vertex> demoVertices;
+        std::vector<Vertex> activeVertices;
 
         // Synchronization
         std::mutex vertexUpdateMutex_;
@@ -80,6 +80,8 @@ namespace chionia {
         void recreateSwapchain();
         void updateUniforms(uint32_t imageIndex);
         void presentFrame(uint32_t imageIndex, uint32_t currentFrame);
+
+
     };
 
 }
