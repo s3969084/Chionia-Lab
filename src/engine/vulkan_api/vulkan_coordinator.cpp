@@ -1,6 +1,7 @@
 #include "vulkan_coordinator.hpp"
 #include <stdexcept>
 #include <iostream>
+#include <chrono>
 
 
 namespace chionia {
@@ -42,13 +43,19 @@ namespace chionia {
 
 
         if (vkCreateDescriptorPool(logicalDevice_.get(), &poolInfo, nullptr, &descriptorPool_) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to create descriptor pool!");
+            throw std::runtime_error("Failed to create descriptor pool!");
         }
 
 
 
+        generateTestPoints();
 
-        vertexBuffer_.create(logicalDevice_.get(), physicalDevice_.getMemoryProperties(), demoVertices);
+        vertexBuffer_.create(
+            logicalDevice_.get(),
+            physicalDevice_.getMemoryProperties(),
+            commandPool_.get(),
+            logicalDevice_.getGraphicsQueue(),
+            demoVertices);
 
         auto bindingDesc = vertexBuffer_.getBindingDescription();
         auto attrDescs = vertexBuffer_.getAttributeDescriptions();
@@ -63,6 +70,8 @@ namespace chionia {
             renderer_.getDescriptorSetLayout(),
             swapchain_.getImageCount()
             );
+
+
         commandBuffers_.allocate(logicalDevice_.get(), commandPool_.get(), static_cast<uint32_t>(framebuffers_.getAll().size()));
         commandBuffers_.record(renderPass_.get(), framebuffers_.getAll(), swapchain_.getExtent(),
                                renderer_.getPipeline(), renderer_.getPipelineLayout(), vertexBuffer_.getBuffer(),
@@ -72,141 +81,105 @@ namespace chionia {
 
 
 
+
         syncObjects_.create(logicalDevice_.get(), MAX_FRAMES_IN_FLIGHT);
 
-        std::cout << "✅ VulkanCoordinator initialized successfully.\n";
+        std::cout << "VulkanCoordinator initialized successfully.\n";
+
     }
 
     void VulkanCoordinator::drawFrame() {
         glfwPollEvents();
 
-        static double lastTime = glfwGetTime();
-        static int frameCount = 0;
-
-        frameCount++;
-        double currentTime = glfwGetTime();
-        if (currentTime - lastTime >= 1.0) { // If a second has passed
-            std::cout << "FPS: " << frameCount << std::endl;
-            frameCount = 0;
-            lastTime = currentTime;
-        }
-
         // Wait and reset fence
         syncObjects_.waitAndResetFence(logicalDevice_.get(), currentFrame_);
 
-        // --- 3D Infinity Animation --- testing
-        std::vector<Vertex> newVertices;
-        const int numPoints = 400;  // smoothness
-        float t = glfwGetTime() * 0.10f;
+        // Acquire next image
+        imageIndex_ = acquireNextImage(currentFrame_);
 
-        for (int i = 0; i < numPoints; ++i) {
-
-            float offset = (float)i / numPoints * glm::two_pi<float>();
-            float scale = 1.0f;  // Adjust size
-            float speed = 1.0f;
-
-            float x = scale * sin(speed * t + offset);
-            float y = scale * sin((speed * t + offset) * 2.0f) * 0.5f;
-            float z = scale * sin((speed * t + offset)) * cos((speed * t + offset));
-
-            newVertices.push_back(Vertex{ 1, glm::vec3(x, y, z) });
-        }
-
-        // Trigger buffer update
-            updateVertices(newVertices);
+        // TODO: Implement per-frame updates if needed
 
 
-        // Testing code ends here
+        // Camera for testing
 
-
-        // Handle pending vertex update safely
-        {
-            std::lock_guard<std::mutex> lock(vertexUpdateMutex_);
-
-            if (vertexUpdatePending_) {
-                vkDeviceWaitIdle(logicalDevice_.get()); // block to be sure
-                vertexBuffer_.destroy(logicalDevice_.get());
-                vertexBuffer_.create(logicalDevice_.get(), physicalDevice_.getMemoryProperties(), pendingVertices_);
-
-                commandBuffers_.record(
-                    renderPass_.get(),
-                    framebuffers_.getAll(),
-                    swapchain_.getExtent(),
-                    renderer_.getPipeline(),
-                    renderer_.getPipelineLayout(),
-                    vertexBuffer_.getBuffer(),
-                    static_cast<uint32_t>(pendingVertices_.size()),
-                    uniformBuffer_.getDescriptorSets()
-                    );
-
-                vertexUpdatePending_ = false;
-            }
-        }
-
-        // Initial state
-        Camera camera;
-
-        UniformBufferObject ubo{};
-        ubo.model = glm::mat4(1.0f);  // No model transformation applied
-        ubo.view = camera.getViewMatrix();
-        ubo.projection = camera.getProjectionMatrix(
+        UniformBufferObject ubo;
+        ubo.model = glm::mat4(1.0f);
+        ubo.view = camera_.getViewMatrix();
+        ubo.projection = camera_.getProjectionMatrix(
             static_cast<float>(swapchain_.getExtent().width) / swapchain_.getExtent().height,
-            true // Flip Y for Vulkan
+            true
         );
 
+        uniformBuffer_.update(logicalDevice_.get(), imageIndex_, ubo);
 
-        // Acquire next image
-        acquireNextImage();
 
-        // update after you have acquired the next image
-        uniformBuffer_.update(logicalDevice_.get(), currentFrame_, ubo);
+
+
 
 
         // Submit command buffers and present the frame
-        presentFrame();
+        presentFrame(imageIndex_, currentFrame_);
 
         currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
-    }
 
 
-    // These are helper functions
-    void VulkanCoordinator::acquireNextImage() {
-        // Acquire image
-        VkResult result = vkAcquireNextImageKHR(
-            logicalDevice_.get(), swapchain_.get(), UINT64_MAX,
-            syncObjects_.getImageAvailable(currentFrame_), VK_NULL_HANDLE, &imageIndex_
-        );
-        if (result != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to acquire swapchain image!");
+        // --- FPS Counter ---
+        fpsFrameCount_++;
+        auto now = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration<float>(now - fpsLastTime_).count();
+
+        if (duration >= 1.0f) {
+            std::cout << "🧭 FPS: " << fpsFrameCount_ << "\n";
+            fpsFrameCount_ = 0;
+            fpsLastTime_ = now;
         }
     }
 
 
-    void VulkanCoordinator::presentFrame() {
+    uint32_t VulkanCoordinator::acquireNextImage(uint32_t currentFrame) {
+        uint32_t imageIndex;
+        VkResult result = vkAcquireNextImageKHR(
+            logicalDevice_.get(),
+            swapchain_.get(),
+            UINT64_MAX,
+            syncObjects_.getImageAvailable(currentFrame),
+            VK_NULL_HANDLE,
+            &imageIndex
+        );
+
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("❌ Failed to acquire swapchain image!");
+        }
+
+        return imageIndex;
+    }
+
+
+    void VulkanCoordinator::presentFrame(uint32_t imageIndex, uint32_t currentFrame) {
 
         // Present Submit info
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
         // Wait on Image Available Semaphore
-        VkSemaphore waitSemaphores[] = { syncObjects_.getImageAvailable(currentFrame_) };
+        VkSemaphore waitSemaphores[] = { syncObjects_.getImageAvailable(currentFrame) };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
 
         // Specify the command buffer to submit
-        VkCommandBuffer cmdBuffer = commandBuffers_.getAll()[imageIndex_];
+        VkCommandBuffer cmdBuffer = commandBuffers_.getAll()[imageIndex];
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &cmdBuffer;
 
         // Signal the render-finished semaphore
-        VkSemaphore signalSemaphores[] = { syncObjects_.getRenderFinished(currentFrame_) };
+        VkSemaphore signalSemaphores[] = { syncObjects_.getRenderFinished(currentFrame) };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
         // Submit to Graphics Queue
-        if (vkQueueSubmit(logicalDevice_.getGraphicsQueue(), 1, &submitInfo, syncObjects_.getInFlightFence(currentFrame_)) != VK_SUCCESS) {
+        if (vkQueueSubmit(logicalDevice_.getGraphicsQueue(), 1, &submitInfo, syncObjects_.getInFlightFence(currentFrame)) != VK_SUCCESS) {
             throw std::runtime_error("❌ Failed to submit draw command buffer!");
         }
 
@@ -218,7 +191,7 @@ namespace chionia {
         VkSwapchainKHR swapchains[] = { swapchain_.get() };
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapchains;
-        presentInfo.pImageIndices = &imageIndex_;
+        presentInfo.pImageIndices = &imageIndex;
 
         VkResult result = vkQueuePresentKHR(logicalDevice_.getPresentQueue(), &presentInfo);
         if (result != VK_SUCCESS) {
@@ -251,7 +224,7 @@ namespace chionia {
         renderer_.destroy(logicalDevice_.get());
         syncObjects_.destroy(logicalDevice_.get());
         commandBuffers_.free(logicalDevice_.get(), commandPool_.get());
-        vertexBuffer_.destroy(logicalDevice_.get());
+        vertexBuffer_.destroy();
 
         framebuffers_.destroy(logicalDevice_.get());
         renderPass_.destroy(logicalDevice_.get());

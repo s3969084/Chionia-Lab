@@ -1,33 +1,41 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <glm/glm.hpp>
 #include <vector>
-
+#include <memory>
 #include "engine/buffer_management/uniform_buffer.hpp"
+#include "engine/buffer_management/buffer.hpp"
 
 namespace chionia {
 
-
     class UniformBuffer {
     public:
-        void create(VkDevice logicalDevice, VkPhysicalDeviceMemoryProperties memoryProperties, size_t swapchainImageCount);
-        void destroy(VkDevice logicalDevice);
-        void update(VkDevice logicalDevice, size_t currentFrame, const UniformBufferObject& ubo);
+        void create(
+            VkDevice device,
+            const VkPhysicalDeviceMemoryProperties& memProps,
+            size_t swapchainImageCount
+        );
 
-        void createDescriptorSets(VkDevice logicalDevice, VkDescriptorPool descriptorPool, VkDescriptorSetLayout layout, size_t swapchainImageCount);
+        void createDescriptorSets(
+            VkDevice device,
+            VkDescriptorPool pool,
+            VkDescriptorSetLayout layout,
+            size_t swapchainImageCount
+        );
 
-        const std::vector<VkDescriptorSet>& getDescriptorSets() const {
-            return descriptorSets_;
-        }
+        void update(
+            VkDevice device,
+            size_t imageIndex,
+            const UniformBufferObject& ubo
+        );
 
-        const std::vector<VkBuffer>& getBuffers() const { return buffers_; }
-        const std::vector<VkDeviceMemory>& getMemories() const { return memories_; }
+        void destroy(VkDevice device);
+
+        const std::vector<VkDescriptorSet>& getDescriptorSets() const { return descriptorSets_; }
 
     private:
-        std::vector<VkBuffer> buffers_;
-        std::vector<VkDeviceMemory> memories_;
-
+        std::vector<std::unique_ptr<Buffer>> buffers_;
         std::vector<VkDescriptorSet> descriptorSets_;
+        VkDeviceSize bufferSize_ = sizeof(UniformBufferObject);
     };
 }

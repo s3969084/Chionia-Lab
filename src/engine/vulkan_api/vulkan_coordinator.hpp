@@ -33,10 +33,10 @@ namespace chionia {
     class VulkanCoordinator {
     public:
         void init();
-        void drawFrame();   // <- draw a single frame
+        void drawFrame();
         void cleanup();
 
-        const AppWindow& getWindow() const { return window_; } // <- new: access GLFW window
+        const AppWindow& getWindow() const { return window_; }
 
         void updateVertices(const std::vector<Vertex>& vertices);
 
@@ -67,19 +67,30 @@ namespace chionia {
         VulkanVertexBuffer vertexBuffer_;
         UniformBuffer uniformBuffer_;
 
+        // Testing
+        Camera camera_;
+        std::vector<Vertex> demoVertices;
+        void generateTestPoints() {
+            const int gridSize = 400;  // value x value = gridSize
+            int id = 0;
+            for (int x = -gridSize; x <= gridSize; ++x) {
+                for (int y = -gridSize; y <= gridSize; ++y) {
+                    float xf = static_cast<float>(x) / gridSize;
+                    float yf = static_cast<float>(y) / gridSize;
+                    demoVertices.push_back({ static_cast<uint32_t>(id++), glm::vec3(xf, yf, 0.0f) });
+
+                }
+            }
+        }
+        // End of testing
+
         // Shader paths
         const std::string shaderPath_Vert = "shaders/point.vert.spv";
         const std::string shaderPath_Frag = "shaders/point.frag.spv";
 
-        std::vector<Vertex> demoVertices = {
-            {0, glm::vec3(-0.5f, -0.5f, 0.0f)},
-            {1, glm::vec3(0.5f, 0.5f, 0.0f)}
-        };
 
-
-
-        void acquireNextImage();
-        void presentFrame();
+        uint32_t acquireNextImage(uint32_t currentFrame);
+        void presentFrame(uint32_t imageIndex, uint32_t currentFrame);
 
         // Thread safety
         std::mutex vertexUpdateMutex_;
@@ -88,8 +99,9 @@ namespace chionia {
 
         VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
 
-
-        float rotatingAngle_ = 0.0f; // Testing
+        // --- Timing (for FPS) ---
+        std::chrono::time_point<std::chrono::high_resolution_clock> fpsLastTime_ = std::chrono::high_resolution_clock::now();
+        int fpsFrameCount_ = 0;
 
 
     };

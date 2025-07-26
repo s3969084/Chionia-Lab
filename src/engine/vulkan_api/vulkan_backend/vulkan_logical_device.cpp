@@ -57,13 +57,13 @@ namespace chionia {
 #endif
 
         if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device_) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to create logical Vulkan device!");
+            throw std::runtime_error("Failed to create logical Vulkan device!");
         }
 
         vkGetDeviceQueue(device_, graphicsQueueFamily_, 0, &graphicsQueue_);
         vkGetDeviceQueue(device_, presentQueueFamily_, 0, &presentQueue_);
 
-        std::cout << "✅ Logical Vulkan device and queues created.\n";
+        std::cout << "Logical Vulkan device and queues created.\n";
     }
 
     void VulkanLogicalDevice::findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) {
@@ -90,7 +90,7 @@ namespace chionia {
         }
 
         if (graphicsQueueFamily_ == UINT32_MAX || presentQueueFamily_ == UINT32_MAX) {
-            throw std::runtime_error("❌ Failed to find suitable queue families!");
+            throw std::runtime_error("Failed to find suitable queue families!");
         }
     }
 

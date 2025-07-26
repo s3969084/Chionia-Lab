@@ -1,47 +1,38 @@
-// src/engine/vulkan/vulkan_backend.hpp
-
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <glm/glm.hpp>
-#include <array>
 #include <vector>
-
+#include <memory>
+#include "engine/buffer_management/buffer.hpp"  // Uses Buffer abstraction
 #include "engine/buffer_management/vertex_buffer.hpp"
 
 namespace chionia {
 
     class VulkanVertexBuffer {
     public:
-        void create(VkDevice logicalDevice, VkPhysicalDeviceMemoryProperties memProperties, const std::vector<Vertex>& vertices);
-        void destroy(VkDevice logicalDevice);
+        VulkanVertexBuffer() = default;
+        ~VulkanVertexBuffer();
 
-        VkVertexInputBindingDescription  getBindingDescription() const;
-        std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() const;
+        void create(
+            VkDevice logicalDevice,
+            const VkPhysicalDeviceMemoryProperties& memoryProperties,
+            VkCommandPool commandPool,
+            VkQueue graphicsQueue,
+            const std::vector<Vertex>& vertices
+        );
 
-        void updateData(VkDevice logicalDevice, VkPhysicalDeviceMemoryProperties memProperties, const std::vector<Vertex>& newVertices) {
+        void destroy();
 
-            // Destroy old buffer and memory
-            destroy(logicalDevice);
-            // Save new vertices
-            vertices_ = newVertices;
-            //Re-create the buffer with new data
-            create(logicalDevice, memProperties, vertices_);
-        }
+        VkBuffer getBuffer() const;
+        size_t getVertexCount() const;
 
-        VkBuffer getBuffer() const { return buffer_;}
-        uint32_t getSize() const { return static_cast<uint32_t>(vertices_.size()); }
-
-
+        static VkVertexInputBindingDescription getBindingDescription();
+        static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();
 
     private:
-        VkBuffer buffer_{VK_NULL_HANDLE};
-        VkDeviceMemory memory_{VK_NULL_HANDLE};
-        std::vector<Vertex> vertices_;
-
-        uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties, const VkPhysicalDeviceMemoryProperties& memProperties);
-
+        std::unique_ptr<Buffer> deviceBuffer_;
+        size_t vertexCount_ = 0;
+        VkDevice device_ = VK_NULL_HANDLE;
     };
-
 
 }

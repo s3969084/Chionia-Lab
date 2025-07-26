@@ -26,7 +26,7 @@ namespace chionia {
     void AppWindow::createWindow() {
         window_ = glfwCreateWindow(width_, height_, title_.c_str(), nullptr, nullptr);
         if (!window_) {
-            std::cerr << "❌ Failed to create GLFW window" << std::endl;
+            std::cerr << "Failed to create GLFW window" << std::endl;
             glfwTerminate();
             std::exit(EXIT_FAILURE);
         }
