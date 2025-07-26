@@ -15,6 +15,13 @@ namespace chionia {
         void pollEvents() const;
         void destroy();  // Explicit manual destruction
 
+        // Window Resizing
+        void markResized() { resized_ = true; }
+        bool wasResized() const { return resized_;}
+        void resetResizeFlag() { resized_ = false; }
+
+
+
     private:
         void initGLFW();
         void createWindow();
@@ -23,6 +30,10 @@ namespace chionia {
         int height_;
         std::string title_;
         GLFWwindow* window_;
+
+        bool resized_ = false;
+
+        static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
     };
 
 }

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "point_cloud_loader.hpp"
-#include "engine/buffer_management/vertex_buffer.hpp"
+#include "utils/json_model_loader.hpp"
+#include "engine/buffer_management/vertex.hpp"
 #include <vector>
 
 namespace chionia::utils {

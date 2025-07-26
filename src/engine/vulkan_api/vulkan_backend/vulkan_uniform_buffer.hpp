@@ -3,7 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <memory>
-#include "engine/buffer_management/uniform_buffer.hpp"
+#include "engine/buffer_management/ubo.hpp"
 #include "engine/buffer_management/buffer.hpp"
 
 namespace chionia {

@@ -4,7 +4,7 @@
 #include <vector>
 #include <memory>
 #include "engine/buffer_management/buffer.hpp"  // Uses Buffer abstraction
-#include "engine/buffer_management/vertex_buffer.hpp"
+#include "engine/buffer_management/vertex.hpp"
 
 namespace chionia {
 

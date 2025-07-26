@@ -17,7 +17,7 @@ namespace chionia {
 
     void AppWindow::initGLFW() {
         if (!glfwInit()) {
-            std::cerr << "❌ Failed to initialize GLFW" << std::endl;
+            std::cerr << "Failed to initialize GLFW" << std::endl;
             std::exit(EXIT_FAILURE);
         }
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -30,6 +30,9 @@ namespace chionia {
             glfwTerminate();
             std::exit(EXIT_FAILURE);
         }
+
+        glfwSetWindowUserPointer(window_, this);
+        glfwSetFramebufferSizeCallback(window_, framebufferResizeCallback);
     }
 
     void AppWindow::pollEvents() const {
@@ -51,6 +54,11 @@ namespace chionia {
         }
         glfwTerminate();
         std::cout << "🧹 GLFW window destroyed and GLFW terminated.\n";
+    }
+
+    void AppWindow::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+        auto app = reinterpret_cast<AppWindow*>(glfwGetWindowUserPointer(window));
+        if (app) app->markResized();
     }
 
 }

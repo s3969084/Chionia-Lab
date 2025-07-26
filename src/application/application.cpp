@@ -3,7 +3,7 @@
 #include <thread>
 #include <chrono>
 
-#include "utils/point_vertex_converter.hpp"
+#include "engine/buffer_management/point_vertex_converter.hpp"
 
 namespace chionia {
 
