@@ -27,11 +27,11 @@ namespace chionia {
             framebufferInfo.layers = 1;
 
             if (vkCreateFramebuffer(logicalDevice, &framebufferInfo, nullptr, &framebuffers_[i]) != VK_SUCCESS) {
-                throw std::runtime_error("❌ Failed to create framebuffer!");
+                throw std::runtime_error("Failed to create framebuffer!");
             }
         }
 
-        std::cout << "✅ Vulkan framebuffers created (" << framebuffers_.size() << ").\n";
+        std::cout << "Vulkan framebuffers created (" << framebuffers_.size() << ").\n";
     }
 
     void VulkanFramebuffer::destroy(VkDevice logicalDevice) {

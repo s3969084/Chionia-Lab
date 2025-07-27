@@ -28,7 +28,7 @@ namespace chionia {
     class VulkanCoordinator {
     public:
         void init();
-        void drawFrame();
+        void drawFrame(const Camera& camera);;
         void cleanup();
 
         const AppWindow& getWindow() const { return window_; }
@@ -75,10 +75,9 @@ namespace chionia {
         int fpsFrameCount_ = 0;
 
         // Internal helpers
-        void generateTestPoints();
         bool shouldRecreateSwapchain(VkResult result) const;
         void recreateSwapchain();
-        void updateUniforms(uint32_t imageIndex);
+        void updateUniforms(uint32_t imageIndex, const Camera& camera);
         void presentFrame(uint32_t imageIndex, uint32_t currentFrame);
 
 

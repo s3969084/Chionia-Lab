@@ -88,11 +88,11 @@ namespace chionia {
             viewInfo.subresourceRange.layerCount = 1;
 
             if (vkCreateImageView(logicalDevice, &viewInfo, nullptr, &imageViews_[i]) != VK_SUCCESS) {
-                throw std::runtime_error("❌ Failed to create image view for swapchain!");
+                throw std::runtime_error("Failed to create image view for swapchain!");
             }
         }
 
-        std::cout << "✅ Vulkan swapchain and image views created.\n";
+        std::cout << "Vulkan swapchain and image views created.\n";
     }
 
     void VulkanSwapchain::destroy(VkDevice logicalDevice) {

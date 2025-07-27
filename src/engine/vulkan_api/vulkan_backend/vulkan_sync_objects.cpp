@@ -20,10 +20,10 @@ namespace chionia {
             if (vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &imageAvailableSemaphores_[i]) != VK_SUCCESS ||
                 vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &renderFinishedSemaphores_[i]) != VK_SUCCESS ||
                 vkCreateFence(logicalDevice, &fenceInfo, nullptr, &inFlightFences_[i]) != VK_SUCCESS) {
-                    throw std::runtime_error("❌ Failed to create synchronization objects!");
+                    throw std::runtime_error("Failed to create synchronization objects!");
                 }
         }
-        std::cout << "✅ Vulkan synchronization objects created.\n";
+        std::cout << "Vulkan synchronization objects created.\n";
     }
 
     void VulkanSyncObjects::destroy(VkDevice logicalDevice) {

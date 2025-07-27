@@ -10,7 +10,7 @@ namespace chionia {
         std::ifstream file(filePath);
 
         if (!file.is_open()) {
-            throw std::runtime_error("❌ Failed to open point cloud file: " + filePath);
+            throw std::runtime_error("Failed to open point cloud file: " + filePath);
         }
 
         json j;

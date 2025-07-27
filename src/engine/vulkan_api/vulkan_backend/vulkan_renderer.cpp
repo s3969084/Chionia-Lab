@@ -34,7 +34,7 @@ namespace chionia {
         layoutInfoDS.pBindings = &uboLayoutBinding;
 
         if (vkCreateDescriptorSetLayout(logicalDevice, &layoutInfoDS, nullptr, &descriptorSetLayout_) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to create descriptor set layout!");
+            throw std::runtime_error("Failed to create descriptor set layout!");
         }
 
         // Create pipeline layout
@@ -44,7 +44,7 @@ namespace chionia {
         layoutInfo.pSetLayouts = &descriptorSetLayout_;
 
         if (vkCreatePipelineLayout(logicalDevice, &layoutInfo, nullptr, &pipelineLayout_) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to create pipeline layout!");
+            throw std::runtime_error("Failed to create pipeline layout!");
         }
 
         // Build graphical pipeline
@@ -56,7 +56,7 @@ namespace chionia {
 
         graphicsPipeline_ = pipelineBuilder_.build(logicalDevice);
 
-        std::cout << "✅ VulkanRenderer pipeline created successfully.\n";
+        std::cout << "VulkanRenderer pipeline created successfully.\n";
     }
 
     void VulkanRenderer::destroy(VkDevice logicalDevice) {
@@ -90,12 +90,12 @@ namespace chionia {
     VkShaderModule VulkanRenderer::createShaderModule(VkDevice logicalDevice, const std::string& filename) {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
         if (!file.is_open()) {
-            throw std::runtime_error("❌ Failed to open shader file: " + filename);
+            throw std::runtime_error("Failed to open shader file: " + filename);
         }
 
         size_t fileSize = static_cast<size_t>(file.tellg());
         if (fileSize % 4 != 0) {
-            throw std::runtime_error("❌ Shader file size is not aligned: " + filename);
+            throw std::runtime_error("Shader file size is not aligned: " + filename);
         }
         std::vector<uint32_t> buffer(fileSize / 4);
 
@@ -112,10 +112,8 @@ namespace chionia {
         VkShaderModule shaderModule;
 
 
-
-
         if (vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to create shader module from file: " + filename);
+            throw std::runtime_error("Failed to create shader module from file: " + filename);
         }
 
         return shaderModule;

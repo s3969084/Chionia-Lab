@@ -11,10 +11,10 @@ namespace chionia {
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
         if (vkCreateCommandPool(logicalDevice, &poolInfo, nullptr, &commandPool_) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to create command pool!");
+            throw std::runtime_error("Failed to create command pool!");
         }
 
-        std::cout << "✅ Vulkan command pool created.\n";
+        std::cout << "Vulkan command pool created.\n";
     }
 
     void VulkanCommandPool::destroy(VkDevice logicalDevice) {

@@ -53,7 +53,7 @@ namespace chionia {
             window_ = nullptr;
         }
         glfwTerminate();
-        std::cout << "🧹 GLFW window destroyed and GLFW terminated.\n";
+        std::cout << "GLFW window destroyed and GLFW terminated.\n";
     }
 
     void AppWindow::framebufferResizeCallback(GLFWwindow* window, int width, int height) {

@@ -13,10 +13,10 @@ namespace chionia {
 
         commandBuffers_.resize(count);
         if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, commandBuffers_.data()) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to allocate command buffers!");
+            throw std::runtime_error("Failed to allocate command buffers!");
         }
 
-        std::cout << "✅ Vulkan command buffers allocated (" << count << ").\n";
+        std::cout << "Vulkan command buffers allocated (" << count << ").\n";
     }
 
     void VulkanCommandBuffers::free(VkDevice logicalDevice, VkCommandPool commandPool) {
@@ -46,7 +46,7 @@ namespace chionia {
 
 
             if (vkBeginCommandBuffer(cmdBuffer, &beginInfo) != VK_SUCCESS) {
-                throw std::runtime_error("❌ Failed to begin recording command buffer!");
+                throw std::runtime_error("Failed to begin recording command buffer!");
             }
 
             VkRenderPassBeginInfo renderPassInfo{};

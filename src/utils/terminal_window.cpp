@@ -14,7 +14,7 @@ namespace chionia {
 
     void TerminalWindow::start() {
         inputThread_ = std::thread([this]() {
-            std::cout << "📟 Terminal window initialized. Type 'exit' to quit.\n";
+            std::cout << "Terminal window initialized. Type 'exit' to quit.\n";
 
             bool promptShown = false;
 
@@ -52,10 +52,10 @@ namespace chionia {
                         if (loadCallback_) {
                             loadCallback_(fullPath);
                         } else {
-                            std::cout << "⚠️ No load callback set.\n";
+                            std::cout << "⚠No load callback set.\n";
                         }
                     } else if (!line.empty()) {
-                        std::cout << "🔸 Unknown command: " << line << "\n";
+                        std::cout << "Unknown command: " << line << "\n";
                     }
 
 
@@ -65,7 +65,7 @@ namespace chionia {
                 }
             }
 
-            std::cout << "✅ Terminal thread exiting.\n";
+            std::cout << "Terminal thread exiting.\n";
         });
     }
 
@@ -78,7 +78,7 @@ namespace chionia {
         std::fflush(stdin); // Try to unblock input in some environments
 
         if (inputThread_.joinable()) {
-            std::cout << "🛑 Stopping terminal input thread..." << std::endl;
+            std::cout << "Stopping terminal input thread..." << std::endl;
             inputThread_.join();
         }
     }

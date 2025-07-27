@@ -19,7 +19,7 @@ namespace chionia {
     VkShaderModule VulkanPipelineBuilder::createShaderModule(VkDevice logicalDevice, const std::string& filename) {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
         if (!file.is_open()) {
-            throw std::runtime_error("❌ Failed to open shader file: " + filename);
+            throw std::runtime_error("Failed to open shader file: " + filename);
         }
 
         size_t fileSize = static_cast<size_t>(file.tellg());
@@ -36,7 +36,7 @@ namespace chionia {
 
         VkShaderModule shaderModule;
         if (vkCreateShaderModule(logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to create shader module: " + filename);
+            throw std::runtime_error("Failed to create shader module: " + filename);
         }
 
         return shaderModule;
@@ -147,7 +147,7 @@ namespace chionia {
 
         VkPipeline pipeline;
         if (vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to create graphics pipeline!");
+            throw std::runtime_error("Failed to create graphics pipeline!");
         }
 
         return pipeline;

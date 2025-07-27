@@ -69,7 +69,7 @@ namespace chionia {
         std::cout << "[Init] VulkanCoordinator initialized successfully.\n";
     }
 
-    void VulkanCoordinator::drawFrame() {
+    void VulkanCoordinator::drawFrame(const Camera& camera) {
         glfwPollEvents();
 
         if (window_.wasResized()) {
@@ -119,7 +119,7 @@ namespace chionia {
 
         }
 
-        updateUniforms(imageIndex_);
+        updateUniforms(imageIndex_, camera);
         presentFrame(imageIndex_, currentFrame_);
         currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
 
@@ -134,11 +134,11 @@ namespace chionia {
         }
     }
 
-    void VulkanCoordinator::updateUniforms(uint32_t imageIndex) {
+    void VulkanCoordinator::updateUniforms(uint32_t imageIndex, const Camera& camera) {
         UniformBufferObject ubo;
         ubo.model = glm::mat4(1.0f);
-        ubo.view = camera_.getViewMatrix();
-        ubo.projection = camera_.getProjectionMatrix(
+        ubo.view = camera.getViewMatrix();
+        ubo.projection = camera.getProjectionMatrix(
             static_cast<float>(swapchain_.getExtent().width) / swapchain_.getExtent().height, true);
 
         uniformBuffer_.update(logicalDevice_.get(), imageIndex, ubo);

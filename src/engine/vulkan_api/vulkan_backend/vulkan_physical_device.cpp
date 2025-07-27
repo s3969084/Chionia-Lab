@@ -9,7 +9,7 @@ namespace chionia {
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
         if (deviceCount == 0) {
-            throw std::runtime_error("❌ No Vulkan-compatible GPUs found!");
+            throw std::runtime_error("No Vulkan-compatible GPUs found!");
         }
 
         std::vector<VkPhysicalDevice> devices(deviceCount);
@@ -23,10 +23,10 @@ namespace chionia {
         }
 
         if (physicalDevice_ == VK_NULL_HANDLE) {
-            throw std::runtime_error("❌ No suitable GPU found!");
+            throw std::runtime_error("No suitable GPU found!");
         }
 
-        std::cout << "✅ Vulkan physical device selected.\n";
+        std::cout << "Vulkan physical device selected.\n";
 
         vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &memoryProperties_);
 
@@ -77,7 +77,7 @@ namespace chionia {
             }
         }
 
-        throw std:: runtime_error("❌ No graphics queue family found!");
+        throw std:: runtime_error("No graphics queue family found!");
     }
 
 }

@@ -7,14 +7,11 @@ void main() {
     vec2 coord = gl_PointCoord * 2.0 - 1.0;
     float dist = dot(coord, coord);
 
-    // Hard cutoff (keep this for shape)
-    if (dist > 1.0) {
-        discard;
-    }
+
 
     // Smoothing the edge for anti-aliasing
     float radius = 1.0;
-    float feather = 0.06; // tweak for softer or harder edge
+    float feather = 0.2; // tweak for softer or harder edge
 
     // Distance from edge (0 at edge, negative inside, positive outside)
     float edgeDist = sqrt(dist) - radius;

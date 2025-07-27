@@ -48,10 +48,10 @@ namespace chionia {
 
         // --- 6. Create ---
         if (vkCreateRenderPass(logicalDevice, &renderPassInfo, nullptr, &renderPass_) != VK_SUCCESS) {
-            throw std::runtime_error("❌ Failed to create render pass!");
+            throw std::runtime_error("Failed to create render pass!");
         }
 
-        std::cout <<  "✅ Vulkan render pass created.\n";
+        std::cout <<  "Vulkan render pass created.\n";
     }
 
     void VulkanRenderPass::destroy(VkDevice logicalDevice) {

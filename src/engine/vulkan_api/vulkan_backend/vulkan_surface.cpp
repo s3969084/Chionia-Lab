@@ -12,7 +12,7 @@ namespace chionia {
         if (glfwCreateWindowSurface(instance, window, nullptr, &surface_) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create vulkan surface!");
         }
-        std::cout << "✅ Vulkan Surface created successfully.\n";
+        std::cout << "Vulkan Surface created successfully.\n";
     }
 
     void VulkanSurface::destroy(VkInstance instance) {
