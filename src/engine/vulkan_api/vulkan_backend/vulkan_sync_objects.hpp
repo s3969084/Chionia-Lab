@@ -13,11 +13,14 @@ namespace chionia {
         void create(VkDevice logicalDevice, size_t maxFramesInFlight);
         void destroy(VkDevice logicalDevice);
 
-        void waitAndResetFence(VkDevice logicalDevice, size_t frameIndex);
+        void ResetFence(VkDevice logicalDevice, size_t frameIndex);
+        void waitAllFrames(VkDevice logicalDevice) const;
 
         VkSemaphore getImageAvailable(size_t frameIndex) const;
         VkSemaphore getRenderFinished(size_t frameIndex) const;
         VkFence& getInFlightFence(size_t frameIndex);
+
+
 
     private:
         std::vector<VkSemaphore> imageAvailableSemaphores_;

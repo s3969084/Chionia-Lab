@@ -73,12 +73,12 @@ namespace chionia {
         glfwPollEvents();
 
         if (window_.wasResized()) {
-            vkDeviceWaitIdle(logicalDevice_.get());
+           syncObjects_.waitAllFrames(logicalDevice_.get());
             recreateSwapchain();
             return;
         }
 
-        syncObjects_.waitAndResetFence(logicalDevice_.get(), currentFrame_);
+        syncObjects_.ResetFence(logicalDevice_.get(), currentFrame_);
 
         VkResult result = vkAcquireNextImageKHR(logicalDevice_.get(), swapchain_.get(), UINT64_MAX,
                                                 syncObjects_.getImageAvailable(currentFrame_), VK_NULL_HANDLE, &imageIndex_);
@@ -87,7 +87,7 @@ namespace chionia {
             recreateSwapchain();
             return;
         } else if (result != VK_SUCCESS) {
-            throw std::runtime_error("Failed to acquire swapchain image!");
+            throw std::runtime_error("Failed to acquire the swapchain image!");
         }
 
         // check if new points data is pending
@@ -191,7 +191,6 @@ namespace chionia {
         glfwGetFramebufferSize(window_.getGLFWwindow(), &width, &height);
         if (width == 0 || height == 0) return;
 
-        vkDeviceWaitIdle(logicalDevice_.get());
         framebuffers_.destroy(logicalDevice_.get());
         swapchain_.destroy(logicalDevice_.get());
         renderPass_.destroy(logicalDevice_.get());
@@ -222,13 +221,11 @@ namespace chionia {
     }
 
     void VulkanCoordinator::cleanup() {
-        vkDeviceWaitIdle(logicalDevice_.get());
 
-        if (descriptorPool_ != VK_NULL_HANDLE) {
-            vkDestroyDescriptorPool(logicalDevice_.get(), descriptorPool_, nullptr);
-            descriptorPool_ = VK_NULL_HANDLE;
-        }
+        syncObjects_.waitAllFrames(logicalDevice_.get());
+        vkQueueWaitIdle(logicalDevice_.getGraphicsQueue());
 
+        vkDestroyDescriptorPool(logicalDevice_.get(), descriptorPool_, nullptr);
         uniformBuffer_.destroy(logicalDevice_.get());
         renderer_.destroy(logicalDevice_.get());
         syncObjects_.destroy(logicalDevice_.get());

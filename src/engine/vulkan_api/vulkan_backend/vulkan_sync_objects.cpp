@@ -32,6 +32,9 @@ namespace chionia {
             vkDestroySemaphore(logicalDevice, renderFinishedSemaphores_[i], nullptr);
             vkDestroyFence(logicalDevice, inFlightFences_[i], nullptr);
         }
+        imageAvailableSemaphores_.clear();
+        renderFinishedSemaphores_.clear();
+        inFlightFences_.clear();
     }
 
     VkSemaphore VulkanSyncObjects::getImageAvailable(size_t frameIndex) const {
@@ -46,9 +49,25 @@ namespace chionia {
         return inFlightFences_[frameIndex];
     }
 
-    void VulkanSyncObjects::waitAndResetFence(VkDevice device, size_t frameIndex) {
+    void VulkanSyncObjects::ResetFence(VkDevice device, size_t frameIndex) {
         vkWaitForFences(device, 1, &inFlightFences_[frameIndex], VK_TRUE, UINT64_MAX);
         vkResetFences(device, 1, &inFlightFences_[frameIndex]);
+    }
+
+    void VulkanSyncObjects::waitAllFrames(VkDevice logicalDevice) const{
+        if (!inFlightFences_.empty()) {
+            VkResult result = vkWaitForFences(
+                logicalDevice,
+                static_cast<uint32_t>(inFlightFences_.size()),
+                inFlightFences_.data(),
+                VK_TRUE,
+                UINT64_MAX);
+
+            if (result != VK_SUCCESS) {
+                throw std::runtime_error("Failed to wait for all in-flight fences.");
+            }
+
+        }
     }
 
 
