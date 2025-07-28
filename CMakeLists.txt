@@ -25,11 +25,11 @@ find_path(GLM_INCLUDE_DIR glm/glm.hpp PATHS /opt/homebrew/include /usr/local/inc
 find_package(nlohmann_json REQUIRED)
 
 if(NOT GLFW_INCLUDE_DIR OR NOT GLFW_LIBRARY)
-    message(FATAL_ERROR "❌ GLFW not found. Install it with: brew install glfw")
+    message(FATAL_ERROR "GLFW not found. Install it with: brew install glfw")
 endif()
 
 if(NOT GLM_INCLUDE_DIR)
-    message(FATAL_ERROR "❌ GLM not found. Install it with: brew install glm")
+    message(FATAL_ERROR "GLM not found. Install it with: brew install glm")
 endif()
 
 # === Include Paths ===
@@ -38,7 +38,6 @@ include_directories(
         ${GLFW_INCLUDE_DIR}
         ${GLM_INCLUDE_DIR}
         ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/src/engine/transform
 
 )
 
@@ -53,7 +52,7 @@ file(MAKE_DIRECTORY ${SHADER_BINARY_DIR})
 
 find_program(GLSLC_EXECUTABLE glslc HINTS "${VULKAN_SDK}/bin")
 if(NOT GLSLC_EXECUTABLE)
-    message(FATAL_ERROR "❌ glslc not found. Ensure Vulkan SDK is installed and in your PATH.")
+    message(FATAL_ERROR "glslc not found. Ensure Vulkan SDK is installed and in your PATH.")
 endif()
 
 foreach(SHADER_FILE ${SHADER_FILES})
@@ -64,7 +63,7 @@ foreach(SHADER_FILE ${SHADER_FILES})
             OUTPUT ${SPV}
             COMMAND ${GLSLC_EXECUTABLE} ${SHADER_FILE} -o ${SPV}
             DEPENDS ${SHADER_FILE}
-            COMMENT "🎨 Compiling shader: ${FILE_NAME}"
+            COMMENT "Compiling shader: ${FILE_NAME}"
             VERBATIM
     )
 
@@ -97,5 +96,5 @@ add_custom_command(
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/data
         ${CMAKE_BINARY_DIR}/data
-        COMMENT "📁 Copying data/ folder to build directory"
+        COMMENT "Copying data/ folder to build directory"
 )
