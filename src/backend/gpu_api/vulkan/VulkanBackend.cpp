@@ -65,19 +65,24 @@ void VulkanBackend::init() {
 void VulkanBackend::drawFrame(const Camera& camera) {
     glfwPollEvents();
 
+    //Process queued render commands (from terminal or async)
     processRenderQueue();
 
+    //Handle window resize
     if (window_.wasResized()) {
         syncObjects_.waitAllFrames(logicalDevice_.get());
         recreateSwapchain();
         return;
     }
 
+    // Prepare synchronization for this frame
     syncObjects_.ResetFence(logicalDevice_.get(), currentFrame_);
 
+    // Acquire next image to render into
     VkResult result = vkAcquireNextImageKHR(
         logicalDevice_.get(), swapchain_.get(), UINT64_MAX,
         syncObjects_.getImageAvailable(currentFrame_), VK_NULL_HANDLE, &imageIndex_);
+
 
     if (shouldRecreateSwapchain(result)) {
         recreateSwapchain();
@@ -86,21 +91,21 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         throw std::runtime_error("Failed to acquire swapchain image!");
     }
 
+    // If we received new vertex data, update the GPU buffers
     if (vertexUpdatePending_) {
         handleVertexUpdate();
     }
 
+    // Update camera matrices
     updateUniforms(imageIndex_, camera);
-
+    // Submit command buffer for GPU execution
     submitFrame(imageIndex_, currentFrame_);
+    // Present the rendered image to the screen
     presentFrame(imageIndex_, currentFrame_);
-
+    //Advance to next frame-in-flight
     currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-    RenderQueue& VulkanBackend::getRenderQueue() {
-    return renderQueue_;
-}
 
 void VulkanBackend::processRenderQueue() {
     while (auto cmdOpt = renderQueue_.tryDequeue()) {

@@ -42,7 +42,8 @@ namespace chionia {
         // --- Command Processing ---
         void updateVertices(const std::vector<Vertex>& vertices) override;
         void reloadPipeline() override;
-        RenderQueue& getRenderQueue();
+        RenderQueue& getRenderQueue() { return renderQueue_;};
+
 
         // --- Render Flow ---
         void submitFrame(uint32_t imageIndex, uint32_t currentFrame);
