@@ -1,7 +1,10 @@
 #pragma once
 
+// --- Core Engine Interfaces ---
 #include "graphics/interface/IRenderBackend.hpp"
 #include "windowing/app_window.hpp"
+
+// --- Vulkan Subsystems ---
 #include "vulkan_instance.hpp"
 #include "VulkanDebugMessenger.hpp"
 #include "vulkan_surface.hpp"
@@ -16,44 +19,43 @@
 #include "vulkan_renderer.hpp"
 #include "vulkan_vertex_buffer.hpp"
 #include "vulkan_uniform_buffer.hpp"
-#include "scene/camera.hpp"
 
+// --- Scene + Commands ---
+#include "scene/camera.hpp"
 #include "core/commands/render_queue.hpp"
 
 namespace chionia {
 
     class VulkanBackend : public IRenderBackend {
     public:
-
         VulkanBackend(int width, int height, const std::string& title)
-    : window_(width, height, title) {}
+            : window_(width, height, title) {}
 
+        // --- Lifecycle ---
         void init() override;
-        void drawFrame(const Camera &camera) override;
-        void updateVertices(const std::vector<Vertex> &vertices) override;
-        void reloadPipeline() override;
         void cleanup() override;
 
-        bool shouldClose() const override {
-            return window_.shouldClose();
-        }
+        // --- Main Loop ---
+        void drawFrame(const Camera& camera) override;
+        bool shouldClose() const override { return window_.shouldClose(); }
 
+        // --- Command Processing ---
+        void updateVertices(const std::vector<Vertex>& vertices) override;
+        void reloadPipeline() override;
+        RenderQueue& getRenderQueue();
+
+        // --- Render Flow ---
         void submitFrame(uint32_t imageIndex, uint32_t currentFrame);
         void presentFrame(uint32_t imageIndex, uint32_t currentFrame);
 
-
-        RenderQueue& getRenderQueue() { return renderQueue_; }
-
+        // --- Window Access ---
         inline const AppWindow& getWindow() const { return window_; }
-
-        GLFWwindow* getGLFWwindow() const {
-            return window_.getGLFWwindow();
-        }
-
+        GLFWwindow* getGLFWwindow() const { return window_.getGLFWwindow(); }
 
     private:
         static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
 
+        // --- Core Subsystems ---
         AppWindow window_;
         VulkanInstance instance_;
         VulkanDebugMessenger debug_;
@@ -70,28 +72,31 @@ namespace chionia {
         VulkanVertexBuffer vertexBuffer_;
         UniformBuffer uniformBuffer_;
 
+        // --- Shader Paths ---
+        const std::string shaderPath_Vert = "shaders/point.vert.spv";
+        const std::string shaderPath_Frag = "shaders/point.frag.spv";
+
+        // --- Frame Management ---
+        VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
+        uint32_t imageIndex_ = 0;
+        uint32_t currentFrame_ = 0;
+
+        // --- Vertex Data ---
         std::vector<Vertex> activeVertices;
         std::vector<Vertex> pendingVertices;
         std::mutex vertexUpdateMutex_;
         bool vertexUpdatePending_ = false;
 
-        VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
-        uint32_t imageIndex_ = 0;
-        uint32_t currentFrame_ = 0;
+        // --- Scene + Commands ---
+        Camera camera_;
+        RenderQueue renderQueue_;
 
-        // Shader paths
-        const std::string shaderPath_Vert = "shaders/point.vert.spv";
-        const std::string shaderPath_Frag = "shaders/point.frag.spv";
-
-        // Internal helpers
+        // --- Internal Helpers ---
         bool shouldRecreateSwapchain(VkResult result) const;
         void recreateSwapchain();
         void updateUniforms(uint32_t imageIndex, const Camera& camera);
-
-        Camera camera_;
-
-        RenderQueue renderQueue_;
-
-
+        void handleVertexUpdate();
+        void processRenderQueue();
     };
-}
+
+} // namespace chionia

@@ -22,9 +22,11 @@ void VulkanBackend::init() {
 
     renderPass_.create(logicalDevice_.get(), swapchain_.getImageFormat());
     framebuffers_.create(logicalDevice_.get(), renderPass_.get(), swapchain_.getImageViews(), swapchain_.getExtent());
+
     commandPool_.create(logicalDevice_.get(), physicalDevice_.findGraphicsQueueFamily(instance_.get()));
     uniformBuffer_.create(logicalDevice_.get(), physicalDevice_.getMemoryProperties(), swapchain_.getImageCount());
 
+    // Descriptor pool
     VkDescriptorPoolSize poolSize{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, static_cast<uint32_t>(swapchain_.getImageCount()) };
     VkDescriptorPoolCreateInfo poolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
     poolInfo.poolSizeCount = 1;
@@ -34,13 +36,10 @@ void VulkanBackend::init() {
     if (vkCreateDescriptorPool(logicalDevice_.get(), &poolInfo, nullptr, &descriptorPool_) != VK_SUCCESS)
         throw std::runtime_error("Failed to create descriptor pool!");
 
+    // Vertex buffer (if preloaded)
     if (!activeVertices.empty()) {
-        vertexBuffer_.create(
-            logicalDevice_.get(),
-            physicalDevice_.getMemoryProperties(),
-            commandPool_.get(),
-            logicalDevice_.getGraphicsQueue(),
-            activeVertices);
+        vertexBuffer_.create(logicalDevice_.get(), physicalDevice_.getMemoryProperties(),
+                             commandPool_.get(), logicalDevice_.getGraphicsQueue(), activeVertices);
     }
 
     auto bindingDesc = vertexBuffer_.getBindingDescription();
@@ -59,27 +58,14 @@ void VulkanBackend::init() {
                            uniformBuffer_.getDescriptorSets(), !hasData);
 
     syncObjects_.create(logicalDevice_.get(), MAX_FRAMES_IN_FLIGHT);
+
     std::cout << "[Init] VulkanBackend initialized successfully.\n";
 }
 
 void VulkanBackend::drawFrame(const Camera& camera) {
     glfwPollEvents();
 
-    // 🔁 Handle queued render commands
-    while (auto cmdOpt = renderQueue_.tryDequeue()) {
-        const RenderCommand& cmd = *cmdOpt;
-        switch (cmd.type) {
-            case RenderCommandType::UpdateVertices:
-                updateVertices(std::get<std::vector<Vertex>>(cmd.data));
-                break;
-            case RenderCommandType::ReloadPipeline:
-                reloadPipeline();
-                break;
-            default:
-                std::cout << "[RenderQueue] Unknown command type\n";
-                break;
-        }
-    }
+    processRenderQueue();
 
     if (window_.wasResized()) {
         syncObjects_.waitAllFrames(logicalDevice_.get());
@@ -101,40 +87,60 @@ void VulkanBackend::drawFrame(const Camera& camera) {
     }
 
     if (vertexUpdatePending_) {
-        std::lock_guard<std::mutex> lock(vertexUpdateMutex_);
-        activeVertices = pendingVertices;
-        vertexUpdatePending_ = false;
-
-        vkDeviceWaitIdle(logicalDevice_.get());
-
-        vertexBuffer_.destroy();
-        vertexBuffer_.create(
-            logicalDevice_.get(), physicalDevice_.getMemoryProperties(),
-            commandPool_.get(), logicalDevice_.getGraphicsQueue(),
-            activeVertices);
-
-        commandBuffers_.record(
-            renderPass_.get(), framebuffers_.getAll(), swapchain_.getExtent(),
-            renderer_.getPipeline(), renderer_.getPipelineLayout(),
-            vertexBuffer_.getBuffer(), static_cast<uint32_t>(activeVertices.size()),
-            uniformBuffer_.getDescriptorSets(), false);
-
-        std::cout << "[Vertex Reload] New vertex data loaded and command buffers re-recorded.\n";
+        handleVertexUpdate();
     }
 
     updateUniforms(imageIndex_, camera);
 
     submitFrame(imageIndex_, currentFrame_);
-
     presentFrame(imageIndex_, currentFrame_);
 
     currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-    void VulkanBackend::submitFrame(uint32_t imageIndex, uint32_t currentFrame) {
+    RenderQueue& VulkanBackend::getRenderQueue() {
+    return renderQueue_;
+}
 
+void VulkanBackend::processRenderQueue() {
+    while (auto cmdOpt = renderQueue_.tryDequeue()) {
+        const RenderCommand& cmd = *cmdOpt;
+        switch (cmd.type) {
+            case RenderCommandType::UpdateVertices:
+                updateVertices(std::get<std::vector<Vertex>>(cmd.data));
+                break;
+            case RenderCommandType::ReloadPipeline:
+                reloadPipeline();
+                break;
+            default:
+                std::cout << "[RenderQueue] Unknown command type\n";
+                break;
+        }
+    }
+}
+
+void VulkanBackend::handleVertexUpdate() {
+    std::lock_guard<std::mutex> lock(vertexUpdateMutex_);
+    activeVertices = pendingVertices;
+    vertexUpdatePending_ = false;
+
+    vkDeviceWaitIdle(logicalDevice_.get());
+
+    vertexBuffer_.destroy();
+    vertexBuffer_.create(logicalDevice_.get(), physicalDevice_.getMemoryProperties(),
+                         commandPool_.get(), logicalDevice_.getGraphicsQueue(), activeVertices);
+
+    commandBuffers_.record(renderPass_.get(), framebuffers_.getAll(), swapchain_.getExtent(),
+                           renderer_.getPipeline(), renderer_.getPipelineLayout(),
+                           vertexBuffer_.getBuffer(), static_cast<uint32_t>(activeVertices.size()),
+                           uniformBuffer_.getDescriptorSets(), false);
+
+    std::cout << "[Vertex Reload] New vertex data loaded and command buffers re-recorded.\n";
+}
+
+void VulkanBackend::submitFrame(uint32_t imageIndex, uint32_t currentFrame) {
     VkSemaphore waitSemaphores[] = { syncObjects_.getImageAvailable(currentFrame) };
-    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
     VkSubmitInfo submitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
     submitInfo.waitSemaphoreCount = 1;
@@ -142,25 +148,24 @@ void VulkanBackend::drawFrame(const Camera& camera) {
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffers_.getAll()[imageIndex];
+
     VkSemaphore signalSemaphores[] = { syncObjects_.getRenderFinished(currentFrame) };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(
-            logicalDevice_.getGraphicsQueue(),
-            1,
-            &submitInfo,
-            syncObjects_.getInFlightFence(currentFrame)) != VK_SUCCESS) {
+    if (vkQueueSubmit(logicalDevice_.getGraphicsQueue(), 1, &submitInfo,
+                      syncObjects_.getInFlightFence(currentFrame)) != VK_SUCCESS) {
         throw std::runtime_error("Failed to submit draw command buffer!");
-            }
+    }
 }
 
-    void VulkanBackend::presentFrame(uint32_t imageIndex, uint32_t currentFrame) {
+void VulkanBackend::presentFrame(uint32_t imageIndex, uint32_t currentFrame) {
     VkSemaphore signalSemaphores[] = { syncObjects_.getRenderFinished(currentFrame) };
 
     VkPresentInfoKHR presentInfo{ VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = signalSemaphores;
+
     VkSwapchainKHR swapchains[] = { swapchain_.get() };
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapchains;
@@ -187,6 +192,7 @@ void VulkanBackend::updateUniforms(uint32_t imageIndex, const Camera& camera) {
     ubo.view = camera.getViewMatrix();
     ubo.projection = camera.getProjectionMatrix(
         static_cast<float>(swapchain_.getExtent().width) / swapchain_.getExtent().height, true);
+
     uniformBuffer_.update(logicalDevice_.get(), imageIndex, ubo);
 }
 
@@ -211,10 +217,11 @@ void VulkanBackend::recreateSwapchain() {
     renderPass_.create(logicalDevice_.get(), swapchain_.getImageFormat());
     renderer_.destroy(logicalDevice_.get());
     renderer_.create(logicalDevice_.get(), swapchain_.getExtent(), renderPass_.get(), shaderPath_Vert, shaderPath_Frag);
+
     framebuffers_.create(logicalDevice_.get(), renderPass_.get(), swapchain_.getImageViews(), swapchain_.getExtent());
     commandBuffers_.allocate(logicalDevice_.get(), commandPool_.get(), static_cast<uint32_t>(framebuffers_.getAll().size()));
 
-    bool hasData = vertexBuffer_.getBuffer() != VK_NULL_HANDLE && !activeVertices.empty();
+    const bool hasData = vertexBuffer_.getBuffer() != VK_NULL_HANDLE && !activeVertices.empty();
     commandBuffers_.record(renderPass_.get(), framebuffers_.getAll(), swapchain_.getExtent(),
                            renderer_.getPipeline(), renderer_.getPipelineLayout(),
                            vertexBuffer_.getBuffer(), static_cast<uint32_t>(vertexBuffer_.getVertexCount()),
@@ -225,11 +232,10 @@ void VulkanBackend::recreateSwapchain() {
 }
 
 void VulkanBackend::reloadPipeline() {
-    // Optional: implement shader hot-reloading here
+    // Optional: shader hot-reloading
 }
 
 void VulkanBackend::cleanup() {
-    // Wait and clear the buffers before destroying
     syncObjects_.waitAllFrames(logicalDevice_.get());
     vkDeviceWaitIdle(logicalDevice_.get());
 
@@ -249,6 +255,5 @@ void VulkanBackend::cleanup() {
     instance_.destroy();
     window_.destroy();
 }
-
 
 } // namespace chionia
