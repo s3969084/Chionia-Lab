@@ -89,6 +89,8 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         activeVertices = pendingVertices;
         vertexUpdatePending_ = false;
 
+        vkDeviceWaitIdle(logicalDevice_.get());
+
         vertexBuffer_.destroy();
         vertexBuffer_.create(
             logicalDevice_.get(), physicalDevice_.getMemoryProperties(),
