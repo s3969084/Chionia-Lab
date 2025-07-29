@@ -19,6 +19,9 @@ namespace chionia {
         // Callback to notify Application of a load request
         void setLoadCallback(std::function<void(const std::string&)> callback);
 
+        void simulateCommand(const std::string& command);
+
+
     private:
         void inputLoop();       // Loop for user input
 
@@ -27,6 +30,10 @@ namespace chionia {
         std::atomic_bool threadRunning_;
 
         std::function<void(const std::string&)> loadCallback_;
+
+        std::queue<std::string> inputQueue_;
+        std::mutex inputMutex_;
+
 
 
     };

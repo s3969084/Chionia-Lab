@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include "engine/buffer_management/vertex.hpp"
+#include "../resources/vertex.hpp"
 #include "scene/camera.hpp"
 
 namespace chionia {
@@ -14,5 +14,8 @@ namespace chionia {
         virtual void reloadPipeline() = 0;
         virtual void cleanup() = 0;
         virtual ~IRenderBackend() = default;
+
+        virtual bool shouldClose() const = 0;
+
     };
 }

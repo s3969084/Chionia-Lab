@@ -33,6 +33,8 @@ namespace chionia {
 
         glfwSetWindowUserPointer(window_, this);
         glfwSetFramebufferSizeCallback(window_, framebufferResizeCallback);
+
+        glfwShowWindow(window_);
     }
 
     void AppWindow::pollEvents() const {

@@ -2,6 +2,6 @@
 
 int main() {
     chionia::Application app;
-    app.run();  // All logic handled inside the Application
+    app.run();
     return 0;
 }

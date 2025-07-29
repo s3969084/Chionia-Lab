@@ -1,6 +1,6 @@
 #include "point_vertex_converter.hpp"
 
-namespace chionia::utils {
+namespace chionia {
 
     std::vector<Vertex> PointVertexConverter::convertPointsToVertices(const std::vector<Point>& points) {
         std::vector<Vertex> vertices;
@@ -15,4 +15,5 @@ namespace chionia::utils {
 
         return vertices;
     }
+
 }

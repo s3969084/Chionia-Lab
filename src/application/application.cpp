@@ -3,11 +3,11 @@
 #include <thread>
 #include <chrono>
 
-#include "engine/buffer_management/point_vertex_converter.hpp"
+#include "graphics/conversion/point_vertex_converter.hpp"
 
 namespace chionia {
 
-    Application::Application() : controller_(camera_) {}
+    Application::Application() : vk_(800, 600, "Chionia Engine"), controller_(camera_) {}
 
     Application::~Application() {
         terminal_.stop();  // Ensure the terminal thread is signaled to stop
@@ -22,7 +22,7 @@ namespace chionia {
             terminal_.setLoadCallback([this](const std::string& filename) {
                 try {
                     auto points = PointCloudLoader::loadFromFile(filename);
-                    auto vertices = chionia::utils::PointVertexConverter::convertPointsToVertices(points);
+                    auto vertices = PointVertexConverter::convertPointsToVertices(points);
                     std::cout << "Loaded point cloud: " << vertices.size() << " vertices from " << filename << "\n";
                     vk_.updateVertices(vertices);
                 } catch (const std::exception& e) {

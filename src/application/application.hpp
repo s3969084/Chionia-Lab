@@ -1,25 +1,31 @@
+
 #pragma once
 
-#include "engine/vulkan_api/vulkan_coordinator.hpp"
-#include "utils/terminal_window.hpp"
-#include "utils/camera_controller.hpp"
-#include "engine/transform/camera.hpp"
+#include "backend/gpu_api/vulkan/VulkanBackend.hpp"
+#include "ui/terminal_window.hpp"
+#include "scene/camera_controller.hpp"
+#include "scene/camera.hpp"
 
 namespace chionia {
 
     class Application {
     public:
-        Application();  // Needed to initialize controller_ with camera_
+        Application();
         ~Application();
 
-        void run();  // Run everything here
+        void run();
+
+
 
     private:
-        VulkanCoordinator vk_;
+        VulkanBackend vk_;
         TerminalWindow terminal_;
 
         Camera camera_;
-        CameraController controller_;
+        CameraController controller_{camera_};
+
+
+
     };
 
 }

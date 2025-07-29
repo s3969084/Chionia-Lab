@@ -4,7 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <unordered_map>
 
-#include "engine/transform/camera.hpp"
+#include "scene/camera.hpp"
 
 namespace chionia {
 

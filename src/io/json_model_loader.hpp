@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/buffer_management/point.hpp"
+#include "../graphics/resources/point.hpp"
 #include <vector>
 #include <string>
 

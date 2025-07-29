@@ -3,8 +3,8 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <memory>
-#include "engine/buffer_management/buffer.hpp"  // Uses Buffer abstraction
-#include "engine/buffer_management/vertex.hpp"
+#include "buffer.hpp"
+#include "../../../graphics/resources/vertex.hpp"
 
 namespace chionia {
 

@@ -1,5 +1,3 @@
-// src/engine/buffer_management/vertex.cpp
-
 #pragma once
 
 #include <glm/glm.hpp>

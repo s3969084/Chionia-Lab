@@ -1,10 +1,10 @@
 #pragma once
 
-#include "utils/json_model_loader.hpp"
-#include "engine/buffer_management/vertex.hpp"
+#include "../../io/json_model_loader.hpp"
+#include "../resources/vertex.hpp"
 #include <vector>
 
-namespace chionia::utils {
+namespace chionia {
 
     class PointVertexConverter {
     public:
