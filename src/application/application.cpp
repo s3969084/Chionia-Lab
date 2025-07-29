@@ -4,6 +4,7 @@
 #include <chrono>
 
 #include "graphics/conversion/point_vertex_converter.hpp"
+#include "io/json_model_loader.hpp"
 
 namespace chionia {
 
@@ -24,7 +25,13 @@ namespace chionia {
                     auto points = PointCloudLoader::loadFromFile(filename);
                     auto vertices = PointVertexConverter::convertPointsToVertices(points);
                     std::cout << "Loaded point cloud: " << vertices.size() << " vertices from " << filename << "\n";
-                    vk_.updateVertices(vertices);
+
+                    // Queue the command to update vertices
+                    RenderCommand cmd;
+                    cmd.type = RenderCommandType::UpdateVertices;
+                    cmd.data = vertices;
+                    vk_.getRenderQueue().enqueue(cmd);
+
                 } catch (const std::exception& e) {
                     std::cerr << "Failed to load file: " << e.what() << "\n";
                 }

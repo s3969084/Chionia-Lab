@@ -65,6 +65,22 @@ void VulkanBackend::init() {
 void VulkanBackend::drawFrame(const Camera& camera) {
     glfwPollEvents();
 
+    // 🔁 Handle queued render commands
+    while (auto cmdOpt = renderQueue_.tryDequeue()) {
+        const RenderCommand& cmd = *cmdOpt;
+        switch (cmd.type) {
+            case RenderCommandType::UpdateVertices:
+                updateVertices(std::get<std::vector<Vertex>>(cmd.data));
+                break;
+            case RenderCommandType::ReloadPipeline:
+                reloadPipeline();
+                break;
+            default:
+                std::cout << "[RenderQueue] Unknown command type\n";
+                break;
+        }
+    }
+
     if (window_.wasResized()) {
         syncObjects_.waitAllFrames(logicalDevice_.get());
         recreateSwapchain();
@@ -195,6 +211,7 @@ void VulkanBackend::reloadPipeline() {
 }
 
 void VulkanBackend::cleanup() {
+    // Wait and clear the buffers before destroying
     syncObjects_.waitAllFrames(logicalDevice_.get());
     vkDeviceWaitIdle(logicalDevice_.get());
 
@@ -214,5 +231,6 @@ void VulkanBackend::cleanup() {
     instance_.destroy();
     window_.destroy();
 }
+
 
 } // namespace chionia

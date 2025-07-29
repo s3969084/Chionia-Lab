@@ -12,5 +12,5 @@ mat4 projection;
 
 void main() {
     gl_Position = ubo.projection * ubo.view * ubo.model * vec4(inPosition, 1.0);
-    gl_PointSize = 5.0;
+    gl_PointSize = 2.0;
 }
