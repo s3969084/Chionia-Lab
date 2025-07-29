@@ -38,6 +38,10 @@ namespace chionia {
             return window_.shouldClose();
         }
 
+        void submitFrame(uint32_t imageIndex, uint32_t currentFrame);
+        void presentFrame(uint32_t imageIndex, uint32_t currentFrame);
+
+
         RenderQueue& getRenderQueue() { return renderQueue_; }
 
         inline const AppWindow& getWindow() const { return window_; }
@@ -83,7 +87,6 @@ namespace chionia {
         bool shouldRecreateSwapchain(VkResult result) const;
         void recreateSwapchain();
         void updateUniforms(uint32_t imageIndex, const Camera& camera);
-        void presentFrame(uint32_t imageIndex, uint32_t currentFrame);
 
         Camera camera_;
 

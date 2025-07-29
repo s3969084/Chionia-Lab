@@ -124,20 +124,39 @@ void VulkanBackend::drawFrame(const Camera& camera) {
 
     updateUniforms(imageIndex_, camera);
 
-    VkSemaphore waitSemaphores[] = { syncObjects_.getImageAvailable(currentFrame_) };
-    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    submitFrame(imageIndex_, currentFrame_);
+
+    presentFrame(imageIndex_, currentFrame_);
+
+    currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+    void VulkanBackend::submitFrame(uint32_t imageIndex, uint32_t currentFrame) {
+
+    VkSemaphore waitSemaphores[] = { syncObjects_.getImageAvailable(currentFrame) };
+    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
     VkSubmitInfo submitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffers_.getAll()[imageIndex_];
-    VkSemaphore signalSemaphores[] = { syncObjects_.getRenderFinished(currentFrame_) };
+    submitInfo.pCommandBuffers = &commandBuffers_.getAll()[imageIndex];
+    VkSemaphore signalSemaphores[] = { syncObjects_.getRenderFinished(currentFrame) };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(logicalDevice_.getGraphicsQueue(), 1, &submitInfo, syncObjects_.getInFlightFence(currentFrame_)) != VK_SUCCESS)
+    if (vkQueueSubmit(
+            logicalDevice_.getGraphicsQueue(),
+            1,
+            &submitInfo,
+            syncObjects_.getInFlightFence(currentFrame)) != VK_SUCCESS) {
         throw std::runtime_error("Failed to submit draw command buffer!");
+            }
+}
+
+    void VulkanBackend::presentFrame(uint32_t imageIndex, uint32_t currentFrame) {
+    VkSemaphore signalSemaphores[] = { syncObjects_.getRenderFinished(currentFrame) };
 
     VkPresentInfoKHR presentInfo{ VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
     presentInfo.waitSemaphoreCount = 1;
@@ -145,16 +164,15 @@ void VulkanBackend::drawFrame(const Camera& camera) {
     VkSwapchainKHR swapchains[] = { swapchain_.get() };
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapchains;
-    presentInfo.pImageIndices = &imageIndex_;
+    presentInfo.pImageIndices = &imageIndex;
 
-    result = vkQueuePresentKHR(logicalDevice_.getPresentQueue(), &presentInfo);
+    VkResult result = vkQueuePresentKHR(logicalDevice_.getPresentQueue(), &presentInfo);
+
     if (shouldRecreateSwapchain(result)) {
         recreateSwapchain();
     } else if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to present swapchain image!");
     }
-
-    currentFrame_ = (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void VulkanBackend::updateVertices(const std::vector<Vertex>& vertices) {
