@@ -1,5 +1,5 @@
 
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.20)
 
 project(Chionia_Lab VERSION 0.1 LANGUAGES CXX)
 
@@ -31,14 +31,14 @@ find_package(nlohmann_json CONFIG REQUIRED)
 # ============================================================
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
-        "${CMAKE_SOURCE_DIR}/src/*.cpp"
-        "${CMAKE_SOURCE_DIR}/src/*.hpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
 )
 
 add_executable(Chionia_Lab ${SOURCES})
 
 target_include_directories(Chionia_Lab PRIVATE
-        "${CMAKE_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
 # ============================================================
@@ -53,10 +53,11 @@ target_link_libraries(Chionia_Lab PRIVATE
 )
 
 # ============================================================
-# Platform-specific configuration
+# Platform configuration
 # ============================================================
 
 if(WIN32)
+
     message(STATUS "Configuring Chionia for Windows")
 
     target_compile_definitions(Chionia_Lab PRIVATE
@@ -66,17 +67,23 @@ if(WIN32)
     )
 
 elseif(APPLE)
+
     message(STATUS "Configuring Chionia for macOS")
 
     find_library(MOLTENVK_LIBRARY
             NAMES MoltenVK
-            PATHS "${VULKAN_SDK}/lib"
+            PATHS "$ENV{VULKAN_SDK}/lib"
             REQUIRED
     )
 
     target_link_libraries(Chionia_Lab PRIVATE
             "${MOLTENVK_LIBRARY}"
     )
+
+else()
+
+    message(STATUS "Configuring Chionia for Linux")
+
 endif()
 
 # ============================================================
@@ -84,18 +91,23 @@ endif()
 # ============================================================
 
 file(GLOB SHADER_FILES CONFIGURE_DEPENDS
-        "${CMAKE_SOURCE_DIR}/src/shaders/*.vert"
-        "${CMAKE_SOURCE_DIR}/src/shaders/*.frag"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/*.vert"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/*.frag"
 )
 
-find_program(GLSLC_EXECUTABLE glslc
-        HINTS
-        "$ENV{VULKAN_SDK}/Bin"
-        "$ENV{VULKAN_SDK}/bin"
-        REQUIRED
-)
+if(WIN32)
+    find_program(GLSLC_EXECUTABLE glslc
+            HINTS "$ENV{VULKAN_SDK}/Bin"
+            REQUIRED
+    )
+else()
+    find_program(GLSLC_EXECUTABLE glslc
+            HINTS "$ENV{VULKAN_SDK}/bin"
+            REQUIRED
+    )
+endif()
 
-set(SHADER_BINARY_DIR "${CMAKE_BINARY_DIR}/shaders")
+set(SHADER_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 
 file(MAKE_DIRECTORY "${SHADER_BINARY_DIR}")
 
@@ -129,12 +141,16 @@ add_dependencies(Chionia_Lab Shaders)
 # Copy application data
 # ============================================================
 
-add_custom_command(
-        TARGET Chionia_Lab POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_SOURCE_DIR}/data"
-        "$<TARGET_FILE_DIR:Chionia_Lab>/data"
-        COMMENT "Copying application data"
-)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/data")
+
+    add_custom_command(
+            TARGET Chionia_Lab POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/data"
+            "$<TARGET_FILE_DIR:Chionia_Lab>/data"
+            COMMENT "Copying application data"
+    )
+
+endif()
 
 message(STATUS "Chionia CMake configuration complete")

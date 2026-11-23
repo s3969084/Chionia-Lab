@@ -1,6 +1,9 @@
+
 #pragma once
 
 #include <atomic>
+#include <functional>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -11,31 +14,30 @@ namespace chionia {
         TerminalWindow();
         ~TerminalWindow();
 
-        void start();           // Launch input thread
-        void stop();            // Signal thread to stop and join
-        bool shouldExit() const;
-        void requestExit();  // Call this when Vulkan window closes
+        void start();
+        void stop();
 
-        // Callback to notify Application of a load request
-        void setLoadCallback(std::function<void(const std::string&)> callback);
+        bool shouldExit() const;
+        void requestExit();
+
+        void setLoadCallback(
+            std::function<void(const std::string&)> callback
+        );
 
         void simulateCommand(const std::string& command);
 
-
     private:
-        void inputLoop();       // Loop for user input
+        void inputLoop();
+        void processCommand(const std::string& command);
 
         std::thread inputThread_;
-        std::atomic_bool exitRequested_;
-        std::atomic_bool threadRunning_;
+
+        std::atomic_bool exitRequested_{false};
+        std::atomic_bool threadRunning_{false};
 
         std::function<void(const std::string&)> loadCallback_;
 
-        std::queue<std::string> inputQueue_;
         std::mutex inputMutex_;
-
-
-
     };
 
 }
