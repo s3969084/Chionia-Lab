@@ -1,100 +1,140 @@
-cmake_minimum_required(VERSION 3.20)
+
+cmake_minimum_required(VERSION 3.24)
+
 project(Chionia_Lab VERSION 0.1 LANGUAGES CXX)
 
+# ============================================================
+# Project configuration
+# ============================================================
+
 option(CHIONIA_DEBUG "Enable Vulkan validation layers and debug utils" ON)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(CHIONIA_DEBUG)
     add_compile_definitions(CHIONIA_DEBUG)
 endif()
 
+# ============================================================
+# Dependencies
+# ============================================================
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+find_package(Vulkan REQUIRED)
+find_package(glfw3 CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
-# === Vulkan SDK ===
-set(VULKAN_SDK "/Users/angeloschristou/VulkanSDK/1.4.313.1/macOS")
-set(VULKAN_INCLUDE_DIR "${VULKAN_SDK}/include")
-set(VULKAN_LIBRARY "${VULKAN_SDK}/lib/libvulkan.1.dylib")
-set(MOLTENVK_LIBRARY "${VULKAN_SDK}/lib/libMoltenVK.dylib")
+# ============================================================
+# Source files
+# ============================================================
 
-# === Dependencies ===
-find_path(GLFW_INCLUDE_DIR GLFW/glfw3.h PATHS /opt/homebrew/include /usr/local/include)
-find_library(GLFW_LIBRARY NAMES glfw PATHS /opt/homebrew/lib /usr/local/lib)
-
-find_path(GLM_INCLUDE_DIR glm/glm.hpp PATHS /opt/homebrew/include /usr/local/include)
-find_package(nlohmann_json REQUIRED)
-
-if(NOT GLFW_INCLUDE_DIR OR NOT GLFW_LIBRARY)
-    message(FATAL_ERROR "GLFW not found. Install it with: brew install glfw")
-endif()
-
-if(NOT GLM_INCLUDE_DIR)
-    message(FATAL_ERROR "GLM not found. Install it with: brew install glm")
-endif()
-
-# === Include Paths ===
-include_directories(
-        ${VULKAN_INCLUDE_DIR}
-        ${GLFW_INCLUDE_DIR}
-        ${GLM_INCLUDE_DIR}
-        ${CMAKE_SOURCE_DIR}/src
-
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/src/*.cpp"
+        "${CMAKE_SOURCE_DIR}/src/*.hpp"
 )
 
-# === Shader Compilation ===
-file(GLOB SHADER_FILES
+add_executable(Chionia_Lab ${SOURCES})
+
+target_include_directories(Chionia_Lab PRIVATE
+        "${CMAKE_SOURCE_DIR}/src"
+)
+
+# ============================================================
+# Link libraries
+# ============================================================
+
+target_link_libraries(Chionia_Lab PRIVATE
+        Vulkan::Vulkan
+        glfw
+        glm::glm
+        nlohmann_json::nlohmann_json
+)
+
+# ============================================================
+# Platform-specific configuration
+# ============================================================
+
+if(WIN32)
+    message(STATUS "Configuring Chionia for Windows")
+
+    target_compile_definitions(Chionia_Lab PRIVATE
+            VK_USE_PLATFORM_WIN32_KHR
+            NOMINMAX
+            WIN32_LEAN_AND_MEAN
+    )
+
+elseif(APPLE)
+    message(STATUS "Configuring Chionia for macOS")
+
+    find_library(MOLTENVK_LIBRARY
+            NAMES MoltenVK
+            PATHS "${VULKAN_SDK}/lib"
+            REQUIRED
+    )
+
+    target_link_libraries(Chionia_Lab PRIVATE
+            "${MOLTENVK_LIBRARY}"
+    )
+endif()
+
+# ============================================================
+# Shader compilation
+# ============================================================
+
+file(GLOB SHADER_FILES CONFIGURE_DEPENDS
         "${CMAKE_SOURCE_DIR}/src/shaders/*.vert"
         "${CMAKE_SOURCE_DIR}/src/shaders/*.frag"
 )
 
+find_program(GLSLC_EXECUTABLE glslc
+        HINTS
+        "$ENV{VULKAN_SDK}/Bin"
+        "$ENV{VULKAN_SDK}/bin"
+        REQUIRED
+)
+
 set(SHADER_BINARY_DIR "${CMAKE_BINARY_DIR}/shaders")
-file(MAKE_DIRECTORY ${SHADER_BINARY_DIR})
 
-find_program(GLSLC_EXECUTABLE glslc HINTS "${VULKAN_SDK}/bin")
-if(NOT GLSLC_EXECUTABLE)
-    message(FATAL_ERROR "glslc not found. Ensure Vulkan SDK is installed and in your PATH.")
-endif()
+file(MAKE_DIRECTORY "${SHADER_BINARY_DIR}")
 
-foreach(SHADER_FILE ${SHADER_FILES})
-    get_filename_component(FILE_NAME ${SHADER_FILE} NAME)
+set(COMPILED_SHADERS)
+
+foreach(SHADER_FILE IN LISTS SHADER_FILES)
+
+    get_filename_component(FILE_NAME "${SHADER_FILE}" NAME)
+
     set(SPV "${SHADER_BINARY_DIR}/${FILE_NAME}.spv")
 
     add_custom_command(
-            OUTPUT ${SPV}
-            COMMAND ${GLSLC_EXECUTABLE} ${SHADER_FILE} -o ${SPV}
-            DEPENDS ${SHADER_FILE}
+            OUTPUT "${SPV}"
+            COMMAND "${GLSLC_EXECUTABLE}" "${SHADER_FILE}" -o "${SPV}"
+            DEPENDS "${SHADER_FILE}"
             COMMENT "Compiling shader: ${FILE_NAME}"
             VERBATIM
     )
 
-    list(APPEND COMPILED_SHADERS ${SPV})
+    list(APPEND COMPILED_SHADERS "${SPV}")
+
 endforeach()
 
-add_custom_target(Shaders ALL DEPENDS ${COMPILED_SHADERS})
-
-# === Source Files ===
-file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
-        ${CMAKE_SOURCE_DIR}/src/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/*.hpp
+add_custom_target(Shaders ALL
+        DEPENDS ${COMPILED_SHADERS}
 )
 
-# === Executable ===
-add_executable(Chionia_Lab ${SOURCES})
+add_dependencies(Chionia_Lab Shaders)
 
-# === Link Libraries ===
-target_link_libraries(Chionia_Lab
-        PRIVATE
-        ${GLFW_LIBRARY}
-        ${VULKAN_LIBRARY}
-        ${MOLTENVK_LIBRARY}
-        nlohmann_json::nlohmann_json
-)
+# ============================================================
+# Copy application data
+# ============================================================
 
-# === Copy data/ folder to build directory ===
 add_custom_command(
         TARGET Chionia_Lab POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/data
-        ${CMAKE_BINARY_DIR}/data
-        COMMENT "Copying data/ folder to build directory"
+        "${CMAKE_SOURCE_DIR}/data"
+        "$<TARGET_FILE_DIR:Chionia_Lab>/data"
+        COMMENT "Copying application data"
 )
+
+message(STATUS "Chionia CMake configuration complete")
