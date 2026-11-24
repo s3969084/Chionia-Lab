@@ -60,8 +60,21 @@ namespace chionia {
     }
 
     void Buffer::writeBuffer(const void* data, VkDeviceSize size) {
+        if (data == nullptr) {
+            throw std::runtime_error("Cannot write null data to buffer.");
+        }
+        if (size > size_) {
+            throw std::runtime_error("Buffer write exceeds allocated buffer size.");
+        }
+
         map();  // ensures mapping
+
+        if (mappedData_ == nullptr) {
+            throw std::runtime_error("Failed to map buffer memory.");
+        }
+
         std::memcpy(mappedData_, data, static_cast<size_t>(size));
+
         unmap();  // optionally keep mapped if reused
     }
 
@@ -108,14 +121,18 @@ namespace chionia {
     }
 
     void Buffer::destroy() {
-        if (memory_ != VK_NULL_HANDLE) {
-            vkFreeMemory(logicalDevice_, memory_, nullptr);
-            memory_ = VK_NULL_HANDLE;
-        }
+        unmap();
+
         if (buffer_ != VK_NULL_HANDLE) {
             vkDestroyBuffer(logicalDevice_, buffer_, nullptr);
             buffer_ = VK_NULL_HANDLE;
         }
+
+        if (memory_ != VK_NULL_HANDLE) {
+            vkFreeMemory(logicalDevice_, memory_, nullptr);
+            memory_ = VK_NULL_HANDLE;
+        }
+
     }
 
     uint32_t Buffer::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {

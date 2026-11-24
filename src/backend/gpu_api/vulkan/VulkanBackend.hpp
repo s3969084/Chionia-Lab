@@ -24,6 +24,9 @@
 #include "scene/camera.hpp"
 #include "core/commands/render_queue.hpp"
 
+//time
+#include <chrono>
+
 namespace chionia {
 
     class VulkanBackend : public IRenderBackend {
@@ -98,6 +101,14 @@ namespace chionia {
         void updateUniforms(uint32_t imageIndex, const Camera& camera);
         void handleVertexUpdate();
         void processRenderQueue();
+
+        // Point vibration controls
+        std::chrono::steady_clock::time_point animationStartTime_;
+
+        bool vibrationEnabled_ = true;
+        float vibrationAmplitude_ = 0.03f;
+        float vibrationSpeed_ = 8.0f;
+
     };
 
 } // namespace chionia

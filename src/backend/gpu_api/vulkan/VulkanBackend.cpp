@@ -9,6 +9,9 @@ void VulkanBackend::init() {
 
     activeVertices.clear();
 
+    //Start the point animation clock
+    animationStartTime_ = std::chrono::steady_clock::now();
+
     instance_.create("Chionia Engine", true);
     debug_.setup(instance_.get());
     surface_.create(window_.getGLFWwindow(), instance_.get());
@@ -193,10 +196,24 @@ void VulkanBackend::updateVertices(const std::vector<Vertex>& vertices) {
 
 void VulkanBackend::updateUniforms(uint32_t imageIndex, const Camera& camera) {
     UniformBufferObject ubo{};
+
     ubo.model = glm::mat4(1.0f);
     ubo.view = camera.getViewMatrix();
+
     ubo.projection = camera.getProjectionMatrix(
         static_cast<float>(swapchain_.getExtent().width) / swapchain_.getExtent().height, true);
+
+    // Animation data
+    const auto now = std::chrono::steady_clock::now();
+
+    const float elapsedTime =
+        std::chrono::duration<float>(now - animationStartTime_).count();
+
+    ubo.animation = glm::vec4(
+        elapsedTime,
+        vibrationAmplitude_,
+        vibrationSpeed_,
+        vibrationEnabled_ ? 1.0f : 0.0f);
 
     uniformBuffer_.update(logicalDevice_.get(), imageIndex, ubo);
 }
