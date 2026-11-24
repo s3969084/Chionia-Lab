@@ -9,6 +9,9 @@ namespace chionia {
         VulkanDebugMessenger() = default;
         ~VulkanDebugMessenger() = default;
 
+        static void populateCreateInfo(
+            VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+
         void setup(VkInstance instance);
         void cleanup(VkInstance instance);
 

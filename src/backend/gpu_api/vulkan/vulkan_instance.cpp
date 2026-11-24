@@ -1,9 +1,13 @@
+
 #include "vulkan_instance.hpp"
+
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <vector>
 #include <stdexcept>
 #include <cstring>
+
+#include "VulkanDebugMessenger.hpp"
 
 namespace chionia {
 
@@ -17,8 +21,12 @@ namespace chionia {
         destroy();
     }
 
-    void VulkanInstance::create(const std::string& appName, bool enableValidation) {
+    void VulkanInstance::create(
+        const std::string& appName,
+        bool enableValidation
+    ) {
         VkApplicationInfo appInfo{};
+
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
         appInfo.pApplicationName = appName.c_str();
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
@@ -29,31 +37,62 @@ namespace chionia {
         auto extensions = getRequiredExtensions(enableValidation);
 
         VkInstanceCreateInfo createInfo{};
+
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &appInfo;
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+        createInfo.enabledExtensionCount =
+            static_cast<uint32_t>(extensions.size());
         createInfo.ppEnabledExtensionNames = extensions.data();
 
 #ifdef CHIONIA_DEBUG
+
         if (enableValidation) {
             if (!checkValidationLayerSupport()) {
-                throw std::runtime_error("Validation layers requested, but not available!");
+                throw std::runtime_error(
+                    "Validation layers requested, but not available!"
+                );
             }
-            createInfo.enabledLayerCount = static_cast<uint32_t>(kValidationLayers.size());
-            createInfo.ppEnabledLayerNames = kValidationLayers.data();
+
+            createInfo.enabledLayerCount =
+                static_cast<uint32_t>(kValidationLayers.size());
+
+            createInfo.ppEnabledLayerNames =
+                kValidationLayers.data();
         } else {
             createInfo.enabledLayerCount = 0;
             createInfo.ppEnabledLayerNames = nullptr;
         }
+
 #else
+
         createInfo.enabledLayerCount = 0;
         createInfo.ppEnabledLayerNames = nullptr;
+
 #endif
 
-        createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+        createInfo.flags |=
+            VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
-        if (vkCreateInstance(&createInfo, nullptr, &instance_) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create Vulkan instance!");
+        // Capture validation messages generated during vkCreateInstance.
+#ifdef CHIONIA_DEBUG
+
+        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+
+        if (enableValidation) {
+            VulkanDebugMessenger::populateCreateInfo(debugCreateInfo);
+            createInfo.pNext = &debugCreateInfo;
+        }
+
+#endif
+
+        if (vkCreateInstance(
+            &createInfo,
+            nullptr,
+            &instance_
+        ) != VK_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to create Vulkan instance!"
+            );
         }
     }
 
@@ -68,20 +107,38 @@ namespace chionia {
         return instance_;
     }
 
-    std::vector<const char*> VulkanInstance::getRequiredExtensions(bool enableValidation) const {
+    std::vector<const char*> VulkanInstance::getRequiredExtensions(
+        bool enableValidation
+    ) const {
         uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+        const char** glfwExtensions =
+            glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
         if (!glfwExtensions || glfwExtensionCount == 0) {
-            throw std::runtime_error("GLFW failed to provide required instance extensions!");
+            throw std::runtime_error(
+                "GLFW failed to provide required instance extensions!"
+            );
         }
 
-        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-        extensions.push_back("VK_KHR_get_physical_device_properties2");
-        extensions.push_back("VK_KHR_portability_enumeration");
+        std::vector<const char*> extensions(
+            glfwExtensions,
+            glfwExtensions + glfwExtensionCount
+        );
+
+        extensions.push_back(
+            "VK_KHR_get_physical_device_properties2"
+        );
+
+        extensions.push_back(
+            "VK_KHR_portability_enumeration"
+        );
 
 #ifdef CHIONIA_DEBUG
         if (enableValidation) {
-            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            extensions.push_back(
+                VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+            );
         }
 #endif
 
@@ -89,23 +146,40 @@ namespace chionia {
     }
 
     bool VulkanInstance::checkValidationLayerSupport() const {
-        uint32_t layerCount;
-        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+        uint32_t layerCount = 0;
+
+        vkEnumerateInstanceLayerProperties(
+            &layerCount,
+            nullptr
+        );
 
         std::vector<VkLayerProperties> availableLayers(layerCount);
-        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+        vkEnumerateInstanceLayerProperties(
+            &layerCount,
+            availableLayers.data()
+        );
 
 #ifdef CHIONIA_DEBUG
+
         for (const char* layerName : kValidationLayers) {
             bool layerFound = false;
+
             for (const auto& layerProperties : availableLayers) {
-                if (strcmp(layerName, layerProperties.layerName) == 0) {
+                if (strcmp(
+                    layerName,
+                    layerProperties.layerName
+                ) == 0) {
                     layerFound = true;
                     break;
                 }
             }
-            if (!layerFound) return false;
+
+            if (!layerFound) {
+                return false;
+            }
         }
+
 #endif
 
         return true;
