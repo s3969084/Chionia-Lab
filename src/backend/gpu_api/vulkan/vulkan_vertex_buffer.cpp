@@ -68,17 +68,26 @@ namespace chionia {
         return bindingDescription;
     }
 
-    std::array<VkVertexInputAttributeDescription, 2> VulkanVertexBuffer::getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 2> attributes{};
+    std::array<VkVertexInputAttributeDescription, 3> VulkanVertexBuffer::getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 3> attributes{};
+
+        // Attribute 0: Particle ID
         attributes[0].binding = 0;
         attributes[0].location = 0;
         attributes[0].format = VK_FORMAT_R32_UINT;
         attributes[0].offset = offsetof(Vertex, id);
 
+        // Attribute 1: Starting position
         attributes[1].binding = 0;
         attributes[1].location = 1;
         attributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
         attributes[1].offset = offsetof(Vertex, position);
+
+        //Attribute 2: Destination position
+        attributes[2].binding = 0;
+        attributes[2].location = 2;
+        attributes[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributes[2].offset = offsetof(Vertex, targetPosition);
 
         return attributes;
     }

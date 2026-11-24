@@ -50,7 +50,7 @@ namespace chionia {
 
         // --- Render Flow ---
         void submitFrame(uint32_t imageIndex, uint32_t currentFrame);
-        void presentFrame(uint32_t imageIndex, uint32_t currentFrame);
+        VkResult presentFrame(uint32_t imageIndex, uint32_t currentFrame);
 
         // --- Window Access ---
         inline const AppWindow& getWindow() const { return window_; }
@@ -96,7 +96,6 @@ namespace chionia {
         RenderQueue renderQueue_;
 
         // --- Internal Helpers ---
-        bool shouldRecreateSwapchain(VkResult result) const;
         void recreateSwapchain();
         void updateUniforms(uint32_t imageIndex, const Camera& camera);
         void handleVertexUpdate();
@@ -108,6 +107,13 @@ namespace chionia {
         bool vibrationEnabled_ = true;
         float vibrationAmplitude_ = 0.03f;
         float vibrationSpeed_ = 8.0f;
+
+        // Shape morph controls
+        std::chrono::steady_clock::time_point morphStartTime_;
+
+        bool morphActive_ = false;
+        float morphDurationSeconds_ = 2.0f;
+        float morphProgress_ = 1.0f;
 
     };
 

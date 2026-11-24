@@ -1,8 +1,11 @@
+
 #pragma once
 
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <memory>
+#include <array>
+
 #include "buffer.hpp"
 #include "../../../graphics/resources/vertex.hpp"
 
@@ -27,7 +30,9 @@ namespace chionia {
         size_t getVertexCount() const;
 
         static VkVertexInputBindingDescription getBindingDescription();
-        static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();
+
+        static std::array<VkVertexInputAttributeDescription, 3>
+        getAttributeDescriptions();
 
     private:
         std::unique_ptr<Buffer> deviceBuffer_;

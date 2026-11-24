@@ -35,7 +35,9 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
 )
 
-add_executable(Chionia_Lab ${SOURCES})
+add_executable(Chionia_Lab ${SOURCES}
+        src/scene/shapes/shape_resampler.cpp
+        src/scene/shapes/shape_resampler.hpp)
 
 target_include_directories(Chionia_Lab PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"

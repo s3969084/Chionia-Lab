@@ -1,17 +1,19 @@
+
 #version 450
 
 layout(location = 0) in uint id;
 layout(location = 1) in vec3 inPosition;
+layout(location = 2) in vec3 inTargetPosition;
 
-// UBO binding (set = 0, binding = 0)
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 model;
     mat4 view;
     mat4 projection;
     vec4 animation;
+    vec4 morph;
 } ubo;
 
-// Deterministic hash: generates a repeatable value for each point.
+// Deterministic hash for each particle.
 float hash(uint x) {
     x ^= x >> 16;
     x *= 0x7feb352du;
@@ -24,13 +26,29 @@ float hash(uint x) {
 
 void main() {
 
-    // Animation parameters
+    // Existing vibration parameters.
     float elapsedTime = ubo.animation.x;
-    float amplitude  = ubo.animation.y;
-    float speed      = ubo.animation.z;
-    float enabled    = ubo.animation.w;
+    float amplitude = ubo.animation.y;
+    float speed = ubo.animation.z;
+    float vibrationEnabled = ubo.animation.w;
 
-    // Generate a unique direction and phase for each point.
+    // Morph parameters.
+    float morphProgress = clamp(ubo.morph.x, 0.0, 1.0);
+    float morphEnabled = ubo.morph.y;
+
+    // Smooth interpolation between starting and destination positions.
+    float smoothProgress =
+        morphProgress * morphProgress * (3.0 - 2.0 * morphProgress);
+
+    float progress = mix(0.0, smoothProgress, morphEnabled);
+
+    vec3 basePosition = mix(
+        inPosition,
+        inTargetPosition,
+        progress
+    );
+
+    // Generate a unique direction and phase for each particle.
     vec3 randomDirection = vec3(
         hash(id + 1u),
         hash(id + 2u),
@@ -45,13 +63,13 @@ void main() {
 
     float phase = hash(id + 4u) * 6.28318530718;
 
-    // Calculate independent vibration.
+    // Preserve existing particle vibration.
     float vibration = sin(elapsedTime * speed + phase);
 
     vec3 animatedPosition =
-        inPosition + direction * vibration * amplitude * enabled;
+        basePosition +
+        direction * vibration * amplitude * vibrationEnabled;
 
-    // Preserve the original transformation pipeline.
     gl_Position = ubo.projection *
                   ubo.view *
                   ubo.model *

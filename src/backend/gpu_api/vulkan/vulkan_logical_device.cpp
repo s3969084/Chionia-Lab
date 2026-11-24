@@ -156,24 +156,11 @@ namespace chionia {
         // Validation layers
         // ====================================================
 
-#ifdef CHIONIA_DEBUG
-
-        const std::vector<const char*> validationLayers = {
-            "VK_LAYER_KHRONOS_validation"
-        };
-
-        createInfo.enabledLayerCount =
-            static_cast<uint32_t>(validationLayers.size());
-
-        createInfo.ppEnabledLayerNames =
-            validationLayers.data();
-
-#else
+        // Validation layers are enabled at the Vulkan instance level.
+        // They must not be enabled again during logical device creation.
 
         createInfo.enabledLayerCount = 0;
         createInfo.ppEnabledLayerNames = nullptr;
-
-#endif
 
         // ====================================================
         // Create Vulkan device
