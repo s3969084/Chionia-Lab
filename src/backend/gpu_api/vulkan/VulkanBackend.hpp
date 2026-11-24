@@ -18,7 +18,7 @@
 #include "vulkan_command_buffers.hpp"
 #include "vulkan_sync_objects.hpp"
 #include "vulkan_renderer.hpp"
-#include "vulkan_vertex_buffer.hpp"
+#include "vulkan_point_cloud_renderer.hpp"
 #include "vulkan_uniform_buffer.hpp"
 
 // --- Scene + Commands ---
@@ -105,9 +105,9 @@ namespace chionia {
         VulkanCommandBuffers commandBuffers_;
         VulkanSyncObjects syncObjects_;
 
-        // --- Particle Rendering ---
+        // --- Rendering ---
         VulkanRenderer renderer_;
-        VulkanVertexBuffer vertexBuffer_;
+        VulkanPointCloudRenderer pointCloudRenderer_;
 
         // --- Uniform Buffer ---
         UniformBuffer uniformBuffer_;
@@ -125,7 +125,7 @@ namespace chionia {
         uint32_t imageIndex_ = 0;
         uint32_t currentFrame_ = 0;
 
-        // --- Particle Vertex Data ---
+        // --- Active Point Data ---
         std::vector<Vertex> activeVertices;
         std::vector<Vertex> pendingVertices;
 
@@ -163,4 +163,4 @@ namespace chionia {
         float morphProgress_ = 1.0f;
     };
 
-} // namespace chionia
+}

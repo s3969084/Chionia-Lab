@@ -13,7 +13,6 @@
 #include <cstdlib>
 #include <string>
 
-#include "graphics/conversion/point_vertex_converter.hpp"
 #include "io/json_model_loader.hpp"
 #include "scene/shapes/shape_resampler.hpp"
 
@@ -32,7 +31,6 @@ namespace chionia {
         try {
             vk_.init();
 
-            // All available shapes, relative to data/objects/.
             const std::vector<std::string> shapes = {
                 "shape/cone.json",
                 "shape/cube.json",
@@ -45,24 +43,20 @@ namespace chionia {
                 "shape/trefoil_knot.json"
             };
 
-            // Random number generator.
             std::random_device rd;
             std::mt19937 rng(rd());
             std::uniform_int_distribution<int> holdDistribution(3, 6);
 
-            // Load a shape into the core PointCloud resource
-            // and queue its resampled representation for Vulkan.
+            // Load, resample and queue a core PointCloud.
+            // No renderer-specific Vertex objects are created here.
             auto queueShape = [this](const std::string& filename) {
 
-                // Load JSON directly into the core resource.
-                PointCloud pointCloud =
+                PointCloud sourceCloud =
                     PointCloudLoader::loadPointCloudFromFile(filename);
 
-                // Resample directly from PointCloud.
-                auto targetPositions =
-                    ShapeResampler::resample(pointCloud);
+                const auto targetPositions =
+                    ShapeResampler::resample(sourceCloud);
 
-                // Verify the fixed population.
                 if (
                     targetPositions.size() !=
                     ShapeResampler::PARTICLE_COUNT
@@ -72,33 +66,29 @@ namespace chionia {
                     );
                 }
 
-                // Convert positions into GPU vertices.
-                // This is currently the renderer boundary.
-                auto vertices =
-                    PointVertexConverter::convertPositionsToVertices(
-                        targetPositions,
-                        targetPositions
-                    );
+                // Build the resampled cloud as a core resource.
+                PointCloud renderCloud(filename);
+
+                for (const auto& position : targetPositions) {
+                    renderCloud.addPoint(position);
+                }
 
                 std::cout
                     << "\n[Shape Loader] Loaded: " << filename
-                    << "\n[Shape Loader] Core points: "
-                    << pointCloud.getPointCount()
-                    << "\n[Shape Loader] Resampled particles: "
-                    << targetPositions.size()
-                    << "\n[Shape Loader] GPU vertices: "
-                    << vertices.size()
+                    << "\n[Shape Loader] Source points: "
+                    << sourceCloud.getPointCount()
+                    << "\n[Shape Loader] Resampled points: "
+                    << renderCloud.getPointCount()
                     << '\n';
 
-                // Queue the vertex update.
+                // Queue the core PointCloud.
                 RenderCommand cmd;
-                cmd.type = RenderCommandType::UpdateVertices;
-                cmd.data = std::move(vertices);
+                cmd.type = RenderCommandType::UpdatePointCloud;
+                cmd.data = std::move(renderCloud);
 
-                vk_.getRenderQueue().enqueue(cmd);
+                vk_.getRenderQueue().enqueue(std::move(cmd));
             };
 
-            // Manual terminal loading.
             terminal_.setLoadCallback(
                 [this, &queueShape, &shapes](
                     const std::string& filename
@@ -106,7 +96,6 @@ namespace chionia {
                     try {
                         queueShape(filename);
 
-                        // Identify the manually loaded shape.
                         int matchedIndex = -1;
 
                         for (
@@ -140,7 +129,6 @@ namespace chionia {
 
             terminal_.start();
 
-            // Create a shuffled sequence of shape indices.
             std::vector<int> shapeOrder(shapes.size());
 
             std::iota(
@@ -158,7 +146,6 @@ namespace chionia {
             std::size_t nextShapePosition = 0;
             int previousShapeIndex = -1;
 
-            // Start with the first randomly selected shape.
             const int initialShapeIndex =
                 shapeOrder[nextShapePosition++];
 
@@ -178,7 +165,6 @@ namespace chionia {
 
             bool controllerInitialized = false;
 
-            // Main render loop.
             while (
                 !terminal_.shouldExit() &&
                 !vk_.getWindow().shouldClose()
@@ -202,7 +188,6 @@ namespace chionia {
                 const auto now =
                     std::chrono::steady_clock::now();
 
-                // Check whether the user manually loaded a shape.
                 const unsigned int currentManualVersion =
                     manualLoadVersion_.load();
 
@@ -221,7 +206,6 @@ namespace chionia {
                         previousShapeIndex = manualIndex;
                     }
 
-                    // Reset automatic timer after manual loading.
                     nextShapeTime =
                         now
                         + std::chrono::seconds(holdDistribution(rng))
@@ -231,15 +215,11 @@ namespace chionia {
                         << "[Auto Cycle] Manual load detected. "
                         << "Automatic timer reset.\n";
                 }
-
-                // Time to load the next automatic shape.
                 else if (now >= nextShapeTime) {
 
-                    // Start another shuffled cycle when exhausted.
                     if (
                         nextShapePosition >= shapeOrder.size()
                     ) {
-
                         std::shuffle(
                             shapeOrder.begin(),
                             shapeOrder.end(),
@@ -252,7 +232,6 @@ namespace chionia {
                     int nextIndex =
                         shapeOrder[nextShapePosition++];
 
-                    // Avoid immediately repeating the same shape.
                     if (
                         nextIndex == previousShapeIndex &&
                         shapeOrder.size() > 1
@@ -261,7 +240,6 @@ namespace chionia {
                         if (
                             nextShapePosition >= shapeOrder.size()
                         ) {
-
                             std::shuffle(
                                 shapeOrder.begin(),
                                 shapeOrder.end(),

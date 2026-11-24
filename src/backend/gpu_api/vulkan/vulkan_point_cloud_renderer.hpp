@@ -7,6 +7,7 @@
 #include <vulkan/vulkan.h>
 
 #include <cstddef>
+#include <vector>
 
 namespace chionia {
 
@@ -15,8 +16,6 @@ namespace chionia {
         VulkanPointCloudRenderer() = default;
         ~VulkanPointCloudRenderer() override = default;
 
-        // Initialise the renderer with the Vulkan resources
-        // supplied by VulkanBackend.
         void initialize(
             VkDevice logicalDevice,
             const VkPhysicalDeviceMemoryProperties& memoryProperties,
@@ -24,21 +23,20 @@ namespace chionia {
             VkQueue graphicsQueue
         );
 
-        // Convert the core PointCloud into GPU vertices
-        // and synchronize the Vulkan buffer.
         void synchronize(
             const PointCloud& pointCloud
         ) override;
 
-        // Release GPU resources.
+        // Transitional path for existing vertex-based animation.
+        void synchronizeVertices(
+            const std::vector<Vertex>& vertices
+        );
+
         void release() override;
 
-        // Number of points currently resident on the GPU.
         std::size_t getResidentPointCount() const override;
 
-        // Vulkan-specific accessors used by the backend.
         VkBuffer getBuffer() const;
-
         VkDeviceSize getCapacityBytes() const;
 
         static VkVertexInputBindingDescription
@@ -52,11 +50,8 @@ namespace chionia {
         VulkanVertexBuffer vertexBuffer_;
 
         VkDevice logicalDevice_ = VK_NULL_HANDLE;
-
         VkPhysicalDeviceMemoryProperties memoryProperties_{};
-
         VkCommandPool commandPool_ = VK_NULL_HANDLE;
-
         VkQueue graphicsQueue_ = VK_NULL_HANDLE;
 
         bool initialized_ = false;

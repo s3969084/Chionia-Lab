@@ -67,6 +67,15 @@ void VulkanBackend::init() {
         logicalDevice_.getGraphicsQueueFamily()
     );
 
+    // Initialise the point cloud renderer.
+    // It now owns and manages the underlying Vulkan vertex buffer.
+    pointCloudRenderer_.initialize(
+        logicalDevice_.get(),
+        physicalDevice_.getMemoryProperties(),
+        commandPool_.get(),
+        logicalDevice_.getGraphicsQueue()
+    );
+
     uniformBuffer_.create(
         logicalDevice_.get(),
         physicalDevice_.getMemoryProperties(),
@@ -99,10 +108,10 @@ void VulkanBackend::init() {
     }
 
     auto bindingDesc =
-        vertexBuffer_.getBindingDescription();
+        VulkanPointCloudRenderer::getBindingDescription();
 
     auto attrDescs =
-        vertexBuffer_.getAttributeDescriptions();
+        VulkanPointCloudRenderer::getAttributeDescriptions();
 
     renderer_.getPipelineBuilder().setVertexInput(
         bindingDesc,
@@ -133,7 +142,7 @@ void VulkanBackend::init() {
     );
 
     const bool hasParticleData =
-        vertexBuffer_.getBuffer() != VK_NULL_HANDLE &&
+        pointCloudRenderer_.getBuffer() != VK_NULL_HANDLE &&
         !activeVertices.empty();
 
     commandBuffers_.record(
@@ -142,7 +151,7 @@ void VulkanBackend::init() {
         swapchain_.getExtent(),
         renderer_.getPipeline(),
         renderer_.getPipelineLayout(),
-        vertexBuffer_.getBuffer(),
+        pointCloudRenderer_.getBuffer(),
         static_cast<uint32_t>(activeVertices.size()),
         uniformBuffer_.getDescriptorSets(),
         !hasParticleData
@@ -365,11 +374,8 @@ void VulkanBackend::handleVertexUpdate() {
         logicalDevice_.get()
     );
 
-    vertexBuffer_.update(
-        logicalDevice_.get(),
-        physicalDevice_.getMemoryProperties(),
-        commandPool_.get(),
-        logicalDevice_.getGraphicsQueue(),
+    // The point cloud renderer now owns GPU buffer updates.
+    pointCloudRenderer_.synchronizeVertices(
         newVertices
     );
 
@@ -377,7 +383,7 @@ void VulkanBackend::handleVertexUpdate() {
 
     const bool hasParticleData =
         !activeVertices.empty() &&
-        vertexBuffer_.getBuffer() != VK_NULL_HANDLE;
+        pointCloudRenderer_.getBuffer() != VK_NULL_HANDLE;
 
     // Re-record because the draw count or buffer may have changed.
     commandBuffers_.record(
@@ -386,7 +392,7 @@ void VulkanBackend::handleVertexUpdate() {
         swapchain_.getExtent(),
         renderer_.getPipeline(),
         renderer_.getPipelineLayout(),
-        vertexBuffer_.getBuffer(),
+        pointCloudRenderer_.getBuffer(),
         static_cast<uint32_t>(activeVertices.size()),
         uniformBuffer_.getDescriptorSets(),
         !hasParticleData
@@ -678,10 +684,10 @@ void VulkanBackend::recreateSwapchain() {
     );
 
     auto bindingDesc =
-        vertexBuffer_.getBindingDescription();
+        VulkanPointCloudRenderer::getBindingDescription();
 
     auto attrDescs =
-        vertexBuffer_.getAttributeDescriptions();
+        VulkanPointCloudRenderer::getAttributeDescriptions();
 
     renderer_.getPipelineBuilder().setVertexInput(
         bindingDesc,
@@ -751,7 +757,7 @@ void VulkanBackend::recreateSwapchain() {
     );
 
     const bool hasParticleData =
-        vertexBuffer_.getBuffer() != VK_NULL_HANDLE &&
+        pointCloudRenderer_.getBuffer() != VK_NULL_HANDLE &&
         !activeVertices.empty();
 
     commandBuffers_.record(
@@ -760,7 +766,7 @@ void VulkanBackend::recreateSwapchain() {
         swapchain_.getExtent(),
         renderer_.getPipeline(),
         renderer_.getPipelineLayout(),
-        vertexBuffer_.getBuffer(),
+        pointCloudRenderer_.getBuffer(),
         static_cast<uint32_t>(activeVertices.size()),
         uniformBuffer_.getDescriptorSets(),
         !hasParticleData
@@ -822,7 +828,8 @@ void VulkanBackend::cleanup() {
         commandPool_.get()
     );
 
-    vertexBuffer_.destroy();
+    // The point cloud renderer owns the GPU vertex buffer.
+    pointCloudRenderer_.release();
 
     uniformBuffer_.destroy(
         logicalDevice_.get()

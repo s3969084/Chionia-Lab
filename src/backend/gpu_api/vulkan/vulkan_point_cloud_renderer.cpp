@@ -13,7 +13,6 @@ namespace chionia {
         VkCommandPool commandPool,
         VkQueue graphicsQueue
     ) {
-
         if (initialized_) {
             throw std::logic_error(
                 "VulkanPointCloudRenderer is already initialized."
@@ -38,26 +37,32 @@ namespace chionia {
         initialized_ = true;
     }
 
-
     void VulkanPointCloudRenderer::synchronize(
         const PointCloud& pointCloud
     ) {
-
         if (!initialized_) {
             throw std::logic_error(
                 "VulkanPointCloudRenderer must be initialized before synchronization."
             );
         }
 
-        // Convert the renderer-independent core resource
-        // into the current Vulkan vertex representation.
         const std::vector<Vertex> vertices =
             PointVertexConverter::convertPointCloudToVertices(
                 pointCloud
             );
 
-        // Update handles both initial allocation and
-        // subsequent buffer updates.
+        synchronizeVertices(vertices);
+    }
+
+    void VulkanPointCloudRenderer::synchronizeVertices(
+        const std::vector<Vertex>& vertices
+    ) {
+        if (!initialized_) {
+            throw std::logic_error(
+                "VulkanPointCloudRenderer must be initialized before synchronization."
+            );
+        }
+
         vertexBuffer_.update(
             logicalDevice_,
             memoryProperties_,
@@ -67,9 +72,7 @@ namespace chionia {
         );
     }
 
-
     void VulkanPointCloudRenderer::release() {
-
         if (!initialized_) {
             return;
         }
@@ -83,30 +86,22 @@ namespace chionia {
         initialized_ = false;
     }
 
-
     std::size_t
     VulkanPointCloudRenderer::getResidentPointCount() const {
-
         return vertexBuffer_.getVertexCount();
     }
 
-
     VkBuffer VulkanPointCloudRenderer::getBuffer() const {
-
         return vertexBuffer_.getBuffer();
     }
 
-
     VkDeviceSize
     VulkanPointCloudRenderer::getCapacityBytes() const {
-
         return vertexBuffer_.getCapacityBytes();
     }
 
-
     VkVertexInputBindingDescription
     VulkanPointCloudRenderer::getBindingDescription() {
-
         return VulkanVertexBuffer::getBindingDescription();
     }
 
