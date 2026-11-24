@@ -7,6 +7,7 @@
 #include <mutex>
 #include <utility>
 #include <vector>
+#include <limits>
 
 namespace chionia {
 
@@ -63,12 +64,8 @@ void VulkanBackend::init() {
 
     commandPool_.create(
         logicalDevice_.get(),
-        physicalDevice_.findGraphicsQueueFamily(instance_.get())
+        logicalDevice_.getGraphicsQueueFamily()
     );
-
-    // --------------------------------------------------------
-    // UNIFORM BUFFER
-    // --------------------------------------------------------
 
     uniformBuffer_.create(
         logicalDevice_.get(),
@@ -76,22 +73,17 @@ void VulkanBackend::init() {
         swapchain_.getImageCount()
     );
 
-    // --------------------------------------------------------
-    // DESCRIPTOR POOL
-    // --------------------------------------------------------
-
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSize.descriptorCount =
         static_cast<uint32_t>(swapchain_.getImageCount());
 
     VkDescriptorPoolCreateInfo poolInfo{};
-    poolInfo.sType =
-        VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = poolSize.descriptorCount;
+    poolInfo.maxSets =
+        static_cast<uint32_t>(swapchain_.getImageCount());
 
     if (
         vkCreateDescriptorPool(
@@ -105,25 +97,6 @@ void VulkanBackend::init() {
             "Failed to create descriptor pool!"
         );
     }
-
-    // --------------------------------------------------------
-    // PARTICLE VERTEX BUFFER
-    // --------------------------------------------------------
-
-    if (!activeVertices.empty()) {
-
-        vertexBuffer_.create(
-            logicalDevice_.get(),
-            physicalDevice_.getMemoryProperties(),
-            commandPool_.get(),
-            logicalDevice_.getGraphicsQueue(),
-            activeVertices
-        );
-    }
-
-    // --------------------------------------------------------
-    // PARTICLE PIPELINE
-    // --------------------------------------------------------
 
     auto bindingDesc =
         vertexBuffer_.getBindingDescription();
@@ -144,20 +117,12 @@ void VulkanBackend::init() {
         shaderPath_Frag
     );
 
-    // --------------------------------------------------------
-    // DESCRIPTOR SETS
-    // --------------------------------------------------------
-
     uniformBuffer_.createDescriptorSets(
         logicalDevice_.get(),
         descriptorPool_,
         renderer_.getDescriptorSetLayout(),
         swapchain_.getImageCount()
     );
-
-    // --------------------------------------------------------
-    // COMMAND BUFFERS
-    // --------------------------------------------------------
 
     commandBuffers_.allocate(
         logicalDevice_.get(),
@@ -175,7 +140,6 @@ void VulkanBackend::init() {
         renderPass_.get(),
         framebuffers_.getAll(),
         swapchain_.getExtent(),
-
         renderer_.getPipeline(),
         renderer_.getPipelineLayout(),
         vertexBuffer_.getBuffer(),
@@ -184,23 +148,18 @@ void VulkanBackend::init() {
         !hasParticleData
     );
 
-    // --------------------------------------------------------
-    // FRAME SYNCHRONIZATION
-    // --------------------------------------------------------
-
     syncObjects_.create(
         logicalDevice_.get(),
         MAX_FRAMES_IN_FLIGHT,
         swapchain_.getImageCount()
     );
 
-    std::cout
-        << "[Init] VulkanBackend initialized successfully.\n";
+    std::cout << "[Init] Vulkan initialization complete.\n";
 }
 
 
 // ------------------------------------------------------------
-// FRAME RENDERING
+// MAIN FRAME LOOP
 // ------------------------------------------------------------
 
 void VulkanBackend::drawFrame(const Camera& camera) {
@@ -228,7 +187,9 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         &imageIndex_
     );
 
-    if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+    if (
+        acquireResult == VK_ERROR_OUT_OF_DATE_KHR
+    ) {
         recreateSwapchain();
         return;
     }
@@ -244,7 +205,10 @@ void VulkanBackend::drawFrame(const Camera& camera) {
 
     handleVertexUpdate();
 
-    updateUniforms(imageIndex_, camera);
+    updateUniforms(
+        imageIndex_,
+        camera
+    );
 
     syncObjects_.resetFence(
         logicalDevice_.get(),
@@ -261,30 +225,21 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         currentFrame_
     );
 
-    const bool needsRecreation =
-        acquireResult == VK_SUBOPTIMAL_KHR ||
+    if (
         presentResult == VK_ERROR_OUT_OF_DATE_KHR ||
         presentResult == VK_SUBOPTIMAL_KHR ||
-        window_.wasResized();
-
-    if (
-        presentResult != VK_SUCCESS &&
-        presentResult != VK_SUBOPTIMAL_KHR &&
-        presentResult != VK_ERROR_OUT_OF_DATE_KHR
+        window_.wasResized()
     ) {
+        recreateSwapchain();
+    }
+    else if (presentResult != VK_SUCCESS) {
         throw std::runtime_error(
             "Failed to present swapchain image!"
         );
     }
 
-    if (needsRecreation) {
-        recreateSwapchain();
-        return;
-    }
-
-    currentFrame_ = (
-        currentFrame_ + 1
-    ) % MAX_FRAMES_IN_FLIGHT;
+    currentFrame_ =
+        (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 
@@ -308,16 +263,7 @@ void VulkanBackend::processRenderQueue() {
 
                 break;
 
-            case RenderCommandType::ReloadPipeline:
-
-                reloadPipeline();
-
-                break;
-
             default:
-
-                std::cout
-                    << "[RenderQueue] Unknown command type\n";
 
                 break;
         }
@@ -326,12 +272,10 @@ void VulkanBackend::processRenderQueue() {
 
 
 // ------------------------------------------------------------
-// VERTEX MORPHING
+// POINT CLOUD / VERTEX UPDATE
 // ------------------------------------------------------------
 
 void VulkanBackend::handleVertexUpdate() {
-
-    constexpr std::size_t EXPECTED_PARTICLE_COUNT = 12000;
 
     std::vector<Vertex> requestedVertices;
 
@@ -346,27 +290,19 @@ void VulkanBackend::handleVertexUpdate() {
         vertexUpdatePending_ = false;
     }
 
-    if (requestedVertices.empty()) {
-        return;
-    }
-
     if (
-        requestedVertices.size() !=
-        EXPECTED_PARTICLE_COUNT
+        requestedVertices.size() >
+        std::numeric_limits<uint32_t>::max()
     ) {
-        throw std::runtime_error(
-            "Incoming shape must contain exactly 12,000 particles."
+        throw std::overflow_error(
+            "Point population exceeds Vulkan draw limits."
         );
     }
 
-    if (
+    // Morphing by index is only valid when populations match.
+    const bool canMorph =
         !activeVertices.empty() &&
-        activeVertices.size() != requestedVertices.size()
-    ) {
-        throw std::runtime_error(
-            "Active and incoming particle populations do not match."
-        );
-    }
+        activeVertices.size() == requestedVertices.size();
 
     const auto now = std::chrono::steady_clock::now();
 
@@ -404,7 +340,7 @@ void VulkanBackend::handleVertexUpdate() {
 
         glm::vec3 currentPosition = targetPosition;
 
-        if (!activeVertices.empty()) {
+        if (canMorph) {
 
             const Vertex& oldVertex = activeVertices[i];
 
@@ -424,9 +360,7 @@ void VulkanBackend::handleVertexUpdate() {
         newVertices.push_back(vertex);
     }
 
-    const bool needsInitialRecording =
-        vertexBuffer_.getBuffer() == VK_NULL_HANDLE;
-
+    // Ensure no submitted frame is using the old resources.
     syncObjects_.waitAllFrames(
         logicalDevice_.get()
     );
@@ -441,37 +375,49 @@ void VulkanBackend::handleVertexUpdate() {
 
     activeVertices = std::move(newVertices);
 
-    if (needsInitialRecording) {
+    const bool hasParticleData =
+        !activeVertices.empty() &&
+        vertexBuffer_.getBuffer() != VK_NULL_HANDLE;
 
-        commandBuffers_.record(
-            renderPass_.get(),
-            framebuffers_.getAll(),
-            swapchain_.getExtent(),
+    // Re-record because the draw count or buffer may have changed.
+    commandBuffers_.record(
+        renderPass_.get(),
+        framebuffers_.getAll(),
+        swapchain_.getExtent(),
+        renderer_.getPipeline(),
+        renderer_.getPipelineLayout(),
+        vertexBuffer_.getBuffer(),
+        static_cast<uint32_t>(activeVertices.size()),
+        uniformBuffer_.getDescriptorSets(),
+        !hasParticleData
+    );
 
-            renderer_.getPipeline(),
-            renderer_.getPipelineLayout(),
-            vertexBuffer_.getBuffer(),
-            static_cast<uint32_t>(activeVertices.size()),
-            uniformBuffer_.getDescriptorSets(),
-            false
-        );
+    if (canMorph && !activeVertices.empty()) {
+
+        morphStartTime_ = now;
+        morphProgress_ = 0.0f;
+        morphActive_ = true;
 
         std::cout
-            << "[Vulkan] Particle command buffers recorded.\n";
+            << "[Morph] Updated point cloud with "
+            << activeVertices.size()
+            << " points. Transition started.\n";
     }
+    else {
 
-    morphStartTime_ = now;
-    morphProgress_ = 0.0f;
-    morphActive_ = true;
+        morphProgress_ = 1.0f;
+        morphActive_ = false;
 
-    std::cout
-        << "[Morph] New 12,000-particle target uploaded. "
-        << "Transition started.\n";
+        std::cout
+            << "[Vulkan] Point cloud updated: "
+            << activeVertices.size()
+            << " points.\n";
+    }
 }
 
 
 // ------------------------------------------------------------
-// GPU SUBMISSION
+// FRAME SUBMISSION
 // ------------------------------------------------------------
 
 void VulkanBackend::submitFrame(
@@ -487,6 +433,10 @@ void VulkanBackend::submitFrame(
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
     };
 
+    VkSemaphore signalSemaphores[] = {
+        syncObjects_.getRenderFinished(imageIndex)
+    };
+
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -495,13 +445,8 @@ void VulkanBackend::submitFrame(
     submitInfo.pWaitDstStageMask = waitStages;
 
     submitInfo.commandBufferCount = 1;
-
     submitInfo.pCommandBuffers =
         &commandBuffers_.getAll()[imageIndex];
-
-    VkSemaphore signalSemaphores[] = {
-        syncObjects_.getRenderFinished(imageIndex)
-    };
 
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
@@ -522,7 +467,7 @@ void VulkanBackend::submitFrame(
 
 
 // ------------------------------------------------------------
-// PRESENTATION
+// FRAME PRESENTATION
 // ------------------------------------------------------------
 
 VkResult VulkanBackend::presentFrame(
@@ -530,7 +475,7 @@ VkResult VulkanBackend::presentFrame(
     uint32_t currentFrame
 ) {
 
-    VkSemaphore signalSemaphores[] = {
+    VkSemaphore waitSemaphores[] = {
         syncObjects_.getRenderFinished(imageIndex)
     };
 
@@ -538,7 +483,7 @@ VkResult VulkanBackend::presentFrame(
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = signalSemaphores;
+    presentInfo.pWaitSemaphores = waitSemaphores;
 
     VkSwapchainKHR swapchains[] = {
         swapchain_.get()
@@ -718,10 +663,6 @@ void VulkanBackend::recreateSwapchain() {
         logicalDevice_.get()
     );
 
-    // --------------------------------------------------------
-    // NEW SWAPCHAIN
-    // --------------------------------------------------------
-
     swapchain_.create(
         physicalDevice_.get(),
         logicalDevice_.get(),
@@ -735,10 +676,6 @@ void VulkanBackend::recreateSwapchain() {
         logicalDevice_.get(),
         swapchain_.getImageFormat()
     );
-
-    // --------------------------------------------------------
-    // RECREATE PARTICLE PIPELINE
-    // --------------------------------------------------------
 
     auto bindingDesc =
         vertexBuffer_.getBindingDescription();
@@ -759,10 +696,6 @@ void VulkanBackend::recreateSwapchain() {
         shaderPath_Frag
     );
 
-    // --------------------------------------------------------
-    // FRAMEBUFFERS
-    // --------------------------------------------------------
-
     framebuffers_.create(
         logicalDevice_.get(),
         renderPass_.get(),
@@ -770,19 +703,11 @@ void VulkanBackend::recreateSwapchain() {
         swapchain_.getExtent()
     );
 
-    // --------------------------------------------------------
-    // UNIFORM BUFFERS
-    // --------------------------------------------------------
-
     uniformBuffer_.create(
         logicalDevice_.get(),
         physicalDevice_.getMemoryProperties(),
         swapchain_.getImageCount()
     );
-
-    // --------------------------------------------------------
-    // DESCRIPTOR POOL
-    // --------------------------------------------------------
 
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -790,8 +715,7 @@ void VulkanBackend::recreateSwapchain() {
         static_cast<uint32_t>(swapchain_.getImageCount());
 
     VkDescriptorPoolCreateInfo poolInfo{};
-    poolInfo.sType =
-        VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 
     poolInfo.poolSizeCount = 1;
     poolInfo.pPoolSizes = &poolSize;
@@ -811,20 +735,12 @@ void VulkanBackend::recreateSwapchain() {
         );
     }
 
-    // --------------------------------------------------------
-    // DESCRIPTOR SETS
-    // --------------------------------------------------------
-
     uniformBuffer_.createDescriptorSets(
         logicalDevice_.get(),
         descriptorPool_,
         renderer_.getDescriptorSetLayout(),
         swapchain_.getImageCount()
     );
-
-    // --------------------------------------------------------
-    // COMMAND BUFFERS
-    // --------------------------------------------------------
 
     commandBuffers_.allocate(
         logicalDevice_.get(),
@@ -842,7 +758,6 @@ void VulkanBackend::recreateSwapchain() {
         renderPass_.get(),
         framebuffers_.getAll(),
         swapchain_.getExtent(),
-
         renderer_.getPipeline(),
         renderer_.getPipelineLayout(),
         vertexBuffer_.getBuffer(),
@@ -850,10 +765,6 @@ void VulkanBackend::recreateSwapchain() {
         uniformBuffer_.getDescriptorSets(),
         !hasParticleData
     );
-
-    // --------------------------------------------------------
-    // SYNCHRONIZATION
-    // --------------------------------------------------------
 
     syncObjects_.create(
         logicalDevice_.get(),
@@ -867,7 +778,7 @@ void VulkanBackend::recreateSwapchain() {
     window_.resetResizeFlag();
 
     std::cout
-        << "[Vulkan] Particle swapchain recreated successfully.\n";
+        << "[Vulkan] Point cloud swapchain recreated successfully.\n";
 }
 
 
