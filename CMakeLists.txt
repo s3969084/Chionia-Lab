@@ -35,9 +35,7 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
 )
 
-add_executable(Chionia_Lab ${SOURCES}
-        src/scene/shapes/shape_resampler.cpp
-        src/scene/shapes/shape_resampler.hpp)
+add_executable(Chionia_Lab ${SOURCES})
 
 target_include_directories(Chionia_Lab PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -98,15 +96,19 @@ file(GLOB SHADER_FILES CONFIGURE_DEPENDS
 )
 
 if(WIN32)
+
     find_program(GLSLC_EXECUTABLE glslc
             HINTS "$ENV{VULKAN_SDK}/Bin"
             REQUIRED
     )
+
 else()
+
     find_program(GLSLC_EXECUTABLE glslc
             HINTS "$ENV{VULKAN_SDK}/bin"
             REQUIRED
     )
+
 endif()
 
 set(SHADER_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")

@@ -156,8 +156,8 @@ void main() {
                   vec4(animatedPosition, 1.0);
 
     gl_PointSize = mix(
-        8.5,
-        12.5,
+        6.5,
+        9.5,
         pulseWave
     );
 }

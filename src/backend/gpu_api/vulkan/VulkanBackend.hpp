@@ -1,3 +1,4 @@
+
 #pragma once
 
 // --- Core Engine Interfaces ---
@@ -24,14 +25,23 @@
 #include "scene/camera.hpp"
 #include "core/commands/render_queue.hpp"
 
-//time
+// --- Standard Library ---
 #include <chrono>
+#include <cstdint>
+#include <mutex>
+#include <string>
+#include <vector>
 
 namespace chionia {
 
     class VulkanBackend : public IRenderBackend {
     public:
-        VulkanBackend(int width, int height, const std::string& title)
+
+        VulkanBackend(
+            int width,
+            int height,
+            const std::string& title
+        )
             : window_(width, height, title) {}
 
         // --- Lifecycle ---
@@ -40,27 +50,49 @@ namespace chionia {
 
         // --- Main Loop ---
         void drawFrame(const Camera& camera) override;
-        bool shouldClose() const override { return window_.shouldClose(); }
+
+        bool shouldClose() const override {
+            return window_.shouldClose();
+        }
 
         // --- Command Processing ---
-        void updateVertices(const std::vector<Vertex>& vertices) override;
-        void reloadPipeline() override;
-        RenderQueue& getRenderQueue() { return renderQueue_;};
+        void updateVertices(
+            const std::vector<Vertex>& vertices
+        ) override;
 
+        void reloadPipeline() override;
+
+        RenderQueue& getRenderQueue() {
+            return renderQueue_;
+        }
 
         // --- Render Flow ---
-        void submitFrame(uint32_t imageIndex, uint32_t currentFrame);
-        VkResult presentFrame(uint32_t imageIndex, uint32_t currentFrame);
+        void submitFrame(
+            uint32_t imageIndex,
+            uint32_t currentFrame
+        );
+
+        VkResult presentFrame(
+            uint32_t imageIndex,
+            uint32_t currentFrame
+        );
 
         // --- Window Access ---
-        inline const AppWindow& getWindow() const { return window_; }
-        GLFWwindow* getGLFWwindow() const { return window_.getGLFWwindow(); }
+        const AppWindow& getWindow() const {
+            return window_;
+        }
+
+        GLFWwindow* getGLFWwindow() const {
+            return window_.getGLFWwindow();
+        }
 
     private:
+
         static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
 
         // --- Core Subsystems ---
         AppWindow window_;
+
         VulkanInstance instance_;
         VulkanDebugMessenger debug_;
         VulkanSurface surface_;
@@ -72,22 +104,31 @@ namespace chionia {
         VulkanCommandPool commandPool_;
         VulkanCommandBuffers commandBuffers_;
         VulkanSyncObjects syncObjects_;
+
+        // --- Particle Rendering ---
         VulkanRenderer renderer_;
         VulkanVertexBuffer vertexBuffer_;
+
+        // --- Uniform Buffer ---
         UniformBuffer uniformBuffer_;
 
         // --- Shader Paths ---
-        const std::string shaderPath_Vert = "shaders/point.vert.spv";
-        const std::string shaderPath_Frag = "shaders/point.frag.spv";
+        const std::string shaderPath_Vert =
+            "shaders/point.vert.spv";
+
+        const std::string shaderPath_Frag =
+            "shaders/point.frag.spv";
 
         // --- Frame Management ---
         VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
+
         uint32_t imageIndex_ = 0;
         uint32_t currentFrame_ = 0;
 
-        // --- Vertex Data ---
+        // --- Particle Vertex Data ---
         std::vector<Vertex> activeVertices;
         std::vector<Vertex> pendingVertices;
+
         std::mutex vertexUpdateMutex_;
         bool vertexUpdatePending_ = false;
 
@@ -97,24 +138,29 @@ namespace chionia {
 
         // --- Internal Helpers ---
         void recreateSwapchain();
-        void updateUniforms(uint32_t imageIndex, const Camera& camera);
+
+        void updateUniforms(
+            uint32_t imageIndex,
+            const Camera& camera
+        );
+
         void handleVertexUpdate();
+
         void processRenderQueue();
 
-        // Point vibration controls
+        // --- Point Vibration Controls ---
         std::chrono::steady_clock::time_point animationStartTime_;
 
         bool vibrationEnabled_ = false;
         float vibrationAmplitude_ = 0.03f;
         float vibrationSpeed_ = 8.0f;
 
-        // Shape morph controls
+        // --- Shape Morph Controls ---
         std::chrono::steady_clock::time_point morphStartTime_;
 
         bool morphActive_ = false;
         float morphDurationSeconds_ = 2.0f;
         float morphProgress_ = 1.0f;
-
     };
 
 } // namespace chionia

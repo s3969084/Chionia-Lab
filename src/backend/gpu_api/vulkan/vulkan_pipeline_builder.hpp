@@ -23,6 +23,8 @@ namespace chionia {
 
         void setVertexInput(const VkVertexInputBindingDescription& binding, const std::vector<VkVertexInputAttributeDescription>& attributes);
 
+        void setCullMode(VkCullModeFlags cullMode);
+
     private:
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages_;
         VkPipelineInputAssemblyStateCreateInfo inputAssembly_{};
@@ -34,6 +36,8 @@ namespace chionia {
         VkVertexInputBindingDescription bindingDescription_{};
         std::vector<VkVertexInputAttributeDescription> attributeDescriptions_;
         bool vertexInputSet_ = false;
+
+        VkCullModeFlags cullMode_ = VK_CULL_MODE_BACK_BIT;
 
 
     };

@@ -1,6 +1,9 @@
+
 #pragma once
 
 #include <vulkan/vulkan.h>
+
+#include <cstdint>
 #include <vector>
 
 namespace chionia {
@@ -10,8 +13,17 @@ namespace chionia {
         VulkanCommandBuffers() = default;
         ~VulkanCommandBuffers() = default;
 
-        void allocate(VkDevice logicalDevice, VkCommandPool commandPool, uint32_t count);
-        void free(VkDevice logicalDevice, VkCommandPool commandPool);
+        void allocate(
+            VkDevice logicalDevice,
+            VkCommandPool commandPool,
+            uint32_t count
+        );
+
+        void free(
+            VkDevice logicalDevice,
+            VkCommandPool commandPool
+        );
+
         void record(
             VkRenderPass renderPass,
             const std::vector<VkFramebuffer>& framebuffers,
@@ -22,17 +34,18 @@ namespace chionia {
             uint32_t vertexCount,
             const std::vector<VkDescriptorSet>& descriptorSets,
             bool skipDrawing
-            );
+        );
 
-        const std::vector<VkCommandBuffer>& getAll() const { return commandBuffers_; }
-        VkCommandBuffer get(size_t index) const { return commandBuffers_.at(index);}
+        const std::vector<VkCommandBuffer>& getAll() const {
+            return commandBuffers_;
+        }
+
+        VkCommandBuffer get(size_t index) const {
+            return commandBuffers_.at(index);
+        }
 
     private:
-
         std::vector<VkCommandBuffer> commandBuffers_;
-
-
-
-
     };
+
 }
