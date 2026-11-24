@@ -102,6 +102,19 @@ namespace chionia {
             VkCommandBuffer commandBuffer =
                 commandBuffers_[i];
 
+            // Explicitly reset before recording.
+            // The caller must ensure this command buffer is not pending.
+            if (
+                vkResetCommandBuffer(
+                    commandBuffer,
+                    0
+                ) != VK_SUCCESS
+            ) {
+                throw std::runtime_error(
+                    "Failed to reset Vulkan command buffer."
+                );
+            }
+
             VkCommandBufferBeginInfo beginInfo{};
 
             beginInfo.sType =
@@ -150,8 +163,8 @@ namespace chionia {
                 VK_SUBPASS_CONTENTS_INLINE
             );
 
-            // Draw the existing particle cloud.
             if (drawParticles) {
+
                 vkCmdBindPipeline(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,

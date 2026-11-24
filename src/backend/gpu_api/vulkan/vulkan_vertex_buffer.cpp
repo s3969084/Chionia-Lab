@@ -1,8 +1,10 @@
 
 #include "vulkan_vertex_buffer.hpp"
 
-#include <stdexcept>
+#include <algorithm>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 
 namespace chionia {
 
@@ -29,10 +31,19 @@ namespace chionia {
             );
         }
 
+        if (
+            vertices.size() >
+            std::numeric_limits<VkDeviceSize>::max() / sizeof(Vertex)
+        ) {
+            throw std::overflow_error(
+                "Vertex buffer size exceeds Vulkan device limits."
+            );
+        }
+
         const VkDeviceSize bufferSize =
             sizeof(Vertex) * vertices.size();
 
-        // 1. Create CPU-visible staging buffer.
+        // Create CPU-visible staging buffer.
         Buffer stagingBuffer(
             logicalDevice,
             memoryProperties,
@@ -47,8 +58,8 @@ namespace chionia {
             bufferSize
         );
 
-        // 2. Create persistent device-local GPU buffer.
-        deviceBuffer_ = std::make_unique<Buffer>(
+        // Create a temporary GPU allocation.
+        auto newDeviceBuffer = std::make_unique<Buffer>(
             logicalDevice,
             memoryProperties,
             bufferSize,
@@ -57,13 +68,14 @@ namespace chionia {
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
         );
 
-        // 3. Upload initial vertex data.
+        // Upload before making the new allocation active.
         stagingBuffer.copyBuffer(
-            *deviceBuffer_,
+            *newDeviceBuffer,
             commandPool,
             graphicsQueue
         );
 
+        deviceBuffer_ = std::move(newDeviceBuffer);
         vertexCount_ = vertices.size();
     }
 
@@ -74,13 +86,22 @@ namespace chionia {
         VkQueue graphicsQueue,
         const std::vector<Vertex>& vertices
     ) {
+        // An empty update means there are no active vertices.
+        // Retain the allocation for possible future reuse.
         if (vertices.empty()) {
-            throw std::invalid_argument(
-                "Cannot update vertex buffer with no vertices."
+            vertexCount_ = 0;
+            return;
+        }
+
+        if (
+            vertices.size() >
+            std::numeric_limits<VkDeviceSize>::max() / sizeof(Vertex)
+        ) {
+            throw std::overflow_error(
+                "Vertex update size exceeds Vulkan device limits."
             );
         }
 
-        // If the GPU buffer does not exist yet, create it.
         if (!deviceBuffer_) {
             create(
                 logicalDevice,
@@ -95,36 +116,86 @@ namespace chionia {
         const VkDeviceSize requiredSize =
             sizeof(Vertex) * vertices.size();
 
-        // Do not overwrite an allocation that is too small.
-        if (requiredSize > deviceBuffer_->getSize()) {
-            throw std::runtime_error(
-                "Vertex update exceeds allocated GPU buffer capacity."
+        const VkDeviceSize currentCapacity =
+            deviceBuffer_->getSize();
+
+        // Determine whether the current allocation is large enough.
+        if (requiredSize > currentCapacity) {
+
+            // Grow geometrically to reduce repeated reallocations.
+            VkDeviceSize newCapacity = currentCapacity;
+
+            if (
+                newCapacity >
+                std::numeric_limits<VkDeviceSize>::max() / 2
+            ) {
+                newCapacity = requiredSize;
+            } else {
+                newCapacity = std::max(
+                    requiredSize,
+                    newCapacity * 2
+                );
+            }
+
+            Buffer stagingBuffer(
+                logicalDevice,
+                memoryProperties,
+                requiredSize,
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            );
+
+            stagingBuffer.writeBuffer(
+                vertices.data(),
+                requiredSize
+            );
+
+            // Create a replacement allocation without destroying
+            // the currently active GPU buffer.
+            auto replacementBuffer = std::make_unique<Buffer>(
+                logicalDevice,
+                memoryProperties,
+                newCapacity,
+                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+            );
+
+            // Upload the new data before replacing the old buffer.
+            stagingBuffer.copyBuffer(
+                *replacementBuffer,
+                commandPool,
+                graphicsQueue
+            );
+
+            // The old allocation is released when its unique_ptr
+            // is replaced. The caller must have waited for GPU use.
+            deviceBuffer_ = std::move(replacementBuffer);
+
+        } else {
+
+            // Existing allocation has sufficient capacity.
+            Buffer stagingBuffer(
+                logicalDevice,
+                memoryProperties,
+                requiredSize,
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            );
+
+            stagingBuffer.writeBuffer(
+                vertices.data(),
+                requiredSize
+            );
+
+            stagingBuffer.copyBuffer(
+                *deviceBuffer_,
+                commandPool,
+                graphicsQueue
             );
         }
-
-        // 1. Create temporary CPU-visible staging buffer.
-        Buffer stagingBuffer(
-            logicalDevice,
-            memoryProperties,
-            requiredSize,
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-        );
-
-        // 2. Write the new vertex data into staging memory.
-        stagingBuffer.writeBuffer(
-            vertices.data(),
-            requiredSize
-        );
-
-        // 3. Copy into the existing GPU buffer.
-        // The destination VkBuffer handle remains unchanged.
-        stagingBuffer.copyBuffer(
-            *deviceBuffer_,
-            commandPool,
-            graphicsQueue
-        );
 
         vertexCount_ = vertices.size();
     }
@@ -144,8 +215,14 @@ namespace chionia {
             : VK_NULL_HANDLE;
     }
 
-    size_t VulkanVertexBuffer::getVertexCount() const {
+    std::size_t VulkanVertexBuffer::getVertexCount() const {
         return vertexCount_;
+    }
+
+    VkDeviceSize VulkanVertexBuffer::getCapacityBytes() const {
+        return deviceBuffer_
+            ? deviceBuffer_->getSize()
+            : 0;
     }
 
     VkVertexInputBindingDescription

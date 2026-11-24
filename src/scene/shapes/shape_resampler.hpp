@@ -1,10 +1,13 @@
+
 #pragma once
 
-#include "io/json_model_loader.hpp"
+#include "core/resources/point_cloud.hpp"
+#include "graphics/resources/point.hpp"
 
 #include <glm/glm.hpp>
-#include <vector>
+
 #include <cstddef>
+#include <vector>
 
 namespace chionia {
 
@@ -12,6 +15,12 @@ namespace chionia {
     public:
         static constexpr std::size_t PARTICLE_COUNT = 12000;
 
+        // New core PointCloud interface.
+        static std::vector<glm::vec3> resample(
+            const PointCloud& pointCloud
+        );
+
+        // Legacy interface retained for compatibility.
         static std::vector<glm::vec3> resample(
             const std::vector<Point>& points
         );

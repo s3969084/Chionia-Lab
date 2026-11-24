@@ -1,5 +1,8 @@
+
 #include "point_vertex_converter.hpp"
 
+#include <cstdint>
+#include <limits>
 #include <stdexcept>
 
 namespace chionia {
@@ -10,12 +13,50 @@ namespace chionia {
         std::vector<Vertex> vertices;
         vertices.reserve(points.size());
 
-        for (uint32_t i = 0; i < points.size(); ++i) {
-            Vertex v;
-            v.id = i;
-            v.position = points[i].position;
-            v.targetPosition = points[i].position;
-            vertices.push_back(v);
+        for (std::size_t i = 0; i < points.size(); ++i) {
+            Vertex vertex;
+
+            vertex.id = static_cast<uint32_t>(i);
+            vertex.position = points[i].position;
+            vertex.targetPosition = points[i].position;
+
+            vertices.push_back(vertex);
+        }
+
+        return vertices;
+    }
+
+    std::vector<Vertex>
+    PointVertexConverter::convertPointCloudToVertices(
+        const PointCloud& pointCloud
+    ) {
+        const auto& points = pointCloud.getPoints();
+
+        if (
+            points.size() >
+            static_cast<std::size_t>(
+                std::numeric_limits<uint32_t>::max()
+            )
+        ) {
+            throw std::overflow_error(
+                "PointCloud contains too many points for the "
+                "current Vulkan Vertex index format."
+            );
+        }
+
+        std::vector<Vertex> vertices;
+        vertices.reserve(points.size());
+
+        for (std::size_t i = 0; i < points.size(); ++i) {
+            Vertex vertex;
+
+            // Renderer-local index, not the PointCloud identity.
+            vertex.id = static_cast<uint32_t>(i);
+
+            vertex.position = points[i].position;
+            vertex.targetPosition = points[i].position;
+
+            vertices.push_back(vertex);
         }
 
         return vertices;
@@ -28,6 +69,17 @@ namespace chionia {
         if (startPositions.size() != targetPositions.size()) {
             throw std::invalid_argument(
                 "Starting and target positions must have equal sizes."
+            );
+        }
+
+        if (
+            startPositions.size() >
+            static_cast<std::size_t>(
+                std::numeric_limits<uint32_t>::max()
+            )
+        ) {
+            throw std::overflow_error(
+                "Too many positions for the current Vulkan Vertex index format."
             );
         }
 

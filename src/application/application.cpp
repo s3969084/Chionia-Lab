@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <utility>
 #include <cstdlib>
+#include <string>
 
 #include "graphics/conversion/point_vertex_converter.hpp"
 #include "io/json_model_loader.hpp"
@@ -20,7 +21,8 @@ namespace chionia {
 
     Application::Application()
         : vk_(800, 600, "Chionia Engine"),
-          controller_(camera_) {}
+          controller_(camera_) {
+    }
 
     Application::~Application() {
         terminal_.stop();
@@ -48,14 +50,17 @@ namespace chionia {
             std::mt19937 rng(rd());
             std::uniform_int_distribution<int> holdDistribution(3, 6);
 
-            // Load and queue a shape.
+            // Load a shape into the core PointCloud resource
+            // and queue its resampled representation for Vulkan.
             auto queueShape = [this](const std::string& filename) {
 
-                // Load original JSON points.
-                auto points = PointCloudLoader::loadFromFile(filename);
+                // Load JSON directly into the core resource.
+                PointCloud pointCloud =
+                    PointCloudLoader::loadPointCloudFromFile(filename);
 
-                // Resample to the fixed particle population.
-                auto targetPositions = ShapeResampler::resample(points);
+                // Resample directly from PointCloud.
+                auto targetPositions =
+                    ShapeResampler::resample(pointCloud);
 
                 // Verify the fixed population.
                 if (
@@ -68,6 +73,7 @@ namespace chionia {
                 }
 
                 // Convert positions into GPU vertices.
+                // This is currently the renderer boundary.
                 auto vertices =
                     PointVertexConverter::convertPositionsToVertices(
                         targetPositions,
@@ -76,8 +82,8 @@ namespace chionia {
 
                 std::cout
                     << "\n[Shape Loader] Loaded: " << filename
-                    << "\n[Shape Loader] Original points: "
-                    << points.size()
+                    << "\n[Shape Loader] Core points: "
+                    << pointCloud.getPointCount()
                     << "\n[Shape Loader] Resampled particles: "
                     << targetPositions.size()
                     << "\n[Shape Loader] GPU vertices: "

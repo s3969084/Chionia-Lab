@@ -2,10 +2,11 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <vector>
-#include <memory>
+
 #include <array>
 #include <cstddef>
+#include <memory>
+#include <vector>
 
 #include "buffer.hpp"
 #include "../../../graphics/resources/vertex.hpp"
@@ -36,7 +37,10 @@ namespace chionia {
         void destroy();
 
         VkBuffer getBuffer() const;
-        size_t getVertexCount() const;
+
+        std::size_t getVertexCount() const;
+
+        VkDeviceSize getCapacityBytes() const;
 
         static VkVertexInputBindingDescription getBindingDescription();
 
@@ -45,7 +49,9 @@ namespace chionia {
 
     private:
         std::unique_ptr<Buffer> deviceBuffer_;
-        size_t vertexCount_ = 0;
+
+        // Number of vertices currently containing valid data.
+        std::size_t vertexCount_ = 0;
     };
 
 }
