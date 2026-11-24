@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <array>
+#include <cstddef>
 
 #include "buffer.hpp"
 #include "../../../graphics/resources/vertex.hpp"
@@ -17,6 +18,14 @@ namespace chionia {
         ~VulkanVertexBuffer();
 
         void create(
+            VkDevice logicalDevice,
+            const VkPhysicalDeviceMemoryProperties& memoryProperties,
+            VkCommandPool commandPool,
+            VkQueue graphicsQueue,
+            const std::vector<Vertex>& vertices
+        );
+
+        void update(
             VkDevice logicalDevice,
             const VkPhysicalDeviceMemoryProperties& memoryProperties,
             VkCommandPool commandPool,
@@ -37,7 +46,6 @@ namespace chionia {
     private:
         std::unique_ptr<Buffer> deviceBuffer_;
         size_t vertexCount_ = 0;
-        VkDevice device_ = VK_NULL_HANDLE;
     };
 
 }

@@ -1,8 +1,8 @@
-
 #include "shape_resampler.hpp"
 
 #include <cmath>
 #include <stdexcept>
+#include <vector>
 
 namespace chionia {
 
@@ -15,19 +15,19 @@ namespace chionia {
             );
         }
 
-        // Remove invalid coordinates before sampling.
+        // Keep only points with valid coordinates.
         std::vector<glm::vec3> validPoints;
         validPoints.reserve(points.size());
 
         for (const Point& point : points) {
-            const glm::vec3& position = point.position;
+            const glm::vec3& p = point.position;
 
             if (
-                std::isfinite(position.x) &&
-                std::isfinite(position.y) &&
-                std::isfinite(position.z)
+                std::isfinite(p.x) &&
+                std::isfinite(p.y) &&
+                std::isfinite(p.z)
             ) {
-                validPoints.push_back(position);
+                validPoints.push_back(p);
             }
         }
 
@@ -37,21 +37,48 @@ namespace chionia {
             );
         }
 
-        constexpr std::size_t targetCount = TARGET_PARTICLE_COUNT;
+        constexpr std::size_t targetCount = PARTICLE_COUNT;
 
         std::vector<glm::vec3> result;
         result.reserve(targetCount);
 
+        // A single valid point is repeated to fill the population.
+        if (validPoints.size() == 1) {
+            result.assign(targetCount, validPoints.front());
+            return result;
+        }
+
         const std::size_t sourceCount = validPoints.size();
 
+        // Resample the ordered source sequence to a fixed population.
+        //
+        // Each destination particle is interpolated between two
+        // neighbouring source points. The first and last source
+        // positions are retained.
         for (std::size_t i = 0; i < targetCount; ++i) {
 
-            // Evenly distribute samples across larger point clouds.
-            // For smaller clouds, distribute repetitions evenly.
-            const std::size_t sourceIndex =
-                (i * sourceCount) / targetCount;
+            const double sourcePosition =
+                static_cast<double>(i) *
+                static_cast<double>(sourceCount - 1) /
+                static_cast<double>(targetCount - 1);
 
-            result.push_back(validPoints[sourceIndex]);
+            const std::size_t indexA =
+                static_cast<std::size_t>(sourcePosition);
+
+            const std::size_t indexB =
+                std::min(indexA + 1, sourceCount - 1);
+
+            const float t = static_cast<float>(
+                sourcePosition - static_cast<double>(indexA)
+            );
+
+            const glm::vec3 position = glm::mix(
+                validPoints[indexA],
+                validPoints[indexB],
+                t
+            );
+
+            result.push_back(position);
         }
 
         return result;

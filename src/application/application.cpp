@@ -8,6 +8,9 @@
 #include <vector>
 #include <algorithm>
 #include <numeric>
+#include <stdexcept>
+#include <utility>
+#include <cstdlib>
 
 #include "graphics/conversion/point_vertex_converter.hpp"
 #include "io/json_model_loader.hpp"
@@ -47,9 +50,24 @@ namespace chionia {
 
             // Load and queue a shape.
             auto queueShape = [this](const std::string& filename) {
+
+                // Load original JSON points.
                 auto points = PointCloudLoader::loadFromFile(filename);
+
+                // Resample to the fixed particle population.
                 auto targetPositions = ShapeResampler::resample(points);
 
+                // Verify the fixed population.
+                if (
+                    targetPositions.size() !=
+                    ShapeResampler::PARTICLE_COUNT
+                ) {
+                    throw std::runtime_error(
+                        "Shape resampler returned an incorrect particle count."
+                    );
+                }
+
+                // Convert positions into GPU vertices.
                 auto vertices =
                     PointVertexConverter::convertPositionsToVertices(
                         targetPositions,
@@ -57,12 +75,16 @@ namespace chionia {
                     );
 
                 std::cout
-                    << "[Shape Loader] Loaded "
-                    << filename
-                    << " | Original points: " << points.size()
-                    << " | Particles: " << vertices.size()
+                    << "\n[Shape Loader] Loaded: " << filename
+                    << "\n[Shape Loader] Original points: "
+                    << points.size()
+                    << "\n[Shape Loader] Resampled particles: "
+                    << targetPositions.size()
+                    << "\n[Shape Loader] GPU vertices: "
+                    << vertices.size()
                     << '\n';
 
+                // Queue the vertex update.
                 RenderCommand cmd;
                 cmd.type = RenderCommandType::UpdateVertices;
                 cmd.data = std::move(vertices);
@@ -72,14 +94,20 @@ namespace chionia {
 
             // Manual terminal loading.
             terminal_.setLoadCallback(
-                [this, &queueShape, &shapes](const std::string& filename) {
+                [this, &queueShape, &shapes](
+                    const std::string& filename
+                ) {
                     try {
                         queueShape(filename);
 
                         // Identify the manually loaded shape.
                         int matchedIndex = -1;
 
-                        for (std::size_t i = 0; i < shapes.size(); ++i) {
+                        for (
+                            std::size_t i = 0;
+                            i < shapes.size();
+                            ++i
+                        ) {
                             const std::string expected =
                                 "data/objects/" + shapes[i];
 
@@ -92,7 +120,8 @@ namespace chionia {
                         manualShapeIndex_.store(matchedIndex);
                         manualLoadVersion_.fetch_add(1);
 
-                    } catch (const std::exception& e) {
+                    }
+                    catch (const std::exception& e) {
                         std::cerr
                             << "[Shape Loader] Failed to load "
                             << filename
@@ -107,16 +136,29 @@ namespace chionia {
 
             // Create a shuffled sequence of shape indices.
             std::vector<int> shapeOrder(shapes.size());
-            std::iota(shapeOrder.begin(), shapeOrder.end(), 0);
-            std::shuffle(shapeOrder.begin(), shapeOrder.end(), rng);
+
+            std::iota(
+                shapeOrder.begin(),
+                shapeOrder.end(),
+                0
+            );
+
+            std::shuffle(
+                shapeOrder.begin(),
+                shapeOrder.end(),
+                rng
+            );
 
             std::size_t nextShapePosition = 0;
             int previousShapeIndex = -1;
 
             // Start with the first randomly selected shape.
-            int initialShapeIndex = shapeOrder[nextShapePosition++];
+            const int initialShapeIndex =
+                shapeOrder[nextShapePosition++];
 
-            queueShape("data/objects/" + shapes[initialShapeIndex]);
+            queueShape(
+                "data/objects/" + shapes[initialShapeIndex]
+            );
 
             previousShapeIndex = initialShapeIndex;
 
@@ -135,12 +177,14 @@ namespace chionia {
                 !terminal_.shouldExit() &&
                 !vk_.getWindow().shouldClose()
             ) {
+
                 glfwPollEvents();
 
                 if (!controllerInitialized) {
                     controller_.init(
                         vk_.getWindow().getGLFWwindow()
                     );
+
                     controllerInitialized = true;
                 }
 
@@ -149,22 +193,29 @@ namespace chionia {
                     0.016f
                 );
 
-                const auto now = std::chrono::steady_clock::now();
+                const auto now =
+                    std::chrono::steady_clock::now();
 
                 // Check whether the user manually loaded a shape.
                 const unsigned int currentManualVersion =
                     manualLoadVersion_.load();
 
-                if (currentManualVersion != observedManualVersion) {
-                    observedManualVersion = currentManualVersion;
+                if (
+                    currentManualVersion !=
+                    observedManualVersion
+                ) {
 
-                    const int manualIndex = manualShapeIndex_.load();
+                    observedManualVersion =
+                        currentManualVersion;
+
+                    const int manualIndex =
+                        manualShapeIndex_.load();
 
                     if (manualIndex >= 0) {
                         previousShapeIndex = manualIndex;
                     }
 
-                    // Reset the automatic timer after manual loading.
+                    // Reset automatic timer after manual loading.
                     nextShapeTime =
                         now
                         + std::chrono::seconds(holdDistribution(rng))
@@ -179,7 +230,10 @@ namespace chionia {
                 else if (now >= nextShapeTime) {
 
                     // Start another shuffled cycle when exhausted.
-                    if (nextShapePosition >= shapeOrder.size()) {
+                    if (
+                        nextShapePosition >= shapeOrder.size()
+                    ) {
+
                         std::shuffle(
                             shapeOrder.begin(),
                             shapeOrder.end(),
@@ -189,14 +243,19 @@ namespace chionia {
                         nextShapePosition = 0;
                     }
 
-                    int nextIndex = shapeOrder[nextShapePosition++];
+                    int nextIndex =
+                        shapeOrder[nextShapePosition++];
 
                     // Avoid immediately repeating the same shape.
                     if (
                         nextIndex == previousShapeIndex &&
                         shapeOrder.size() > 1
                     ) {
-                        if (nextShapePosition >= shapeOrder.size()) {
+
+                        if (
+                            nextShapePosition >= shapeOrder.size()
+                        ) {
+
                             std::shuffle(
                                 shapeOrder.begin(),
                                 shapeOrder.end(),
@@ -206,10 +265,12 @@ namespace chionia {
                             nextShapePosition = 0;
                         }
 
-                        nextIndex = shapeOrder[nextShapePosition++];
+                        nextIndex =
+                            shapeOrder[nextShapePosition++];
                     }
 
                     try {
+
                         queueShape(
                             "data/objects/" + shapes[nextIndex]
                         );
@@ -218,10 +279,14 @@ namespace chionia {
 
                         nextShapeTime =
                             now
-                            + std::chrono::seconds(holdDistribution(rng))
+                            + std::chrono::seconds(
+                                holdDistribution(rng)
+                            )
                             + std::chrono::seconds(2);
 
-                    } catch (const std::exception& e) {
+                    }
+                    catch (const std::exception& e) {
+
                         std::cerr
                             << "[Auto Cycle] Failed to load shape: "
                             << e.what()
@@ -240,18 +305,28 @@ namespace chionia {
             }
 
             if (vk_.getWindow().shouldClose()) {
+
                 terminal_.requestExit();
-                std::cin.setstate(std::ios::eofbit);
+
+                std::cin.setstate(
+                    std::ios::eofbit
+                );
             }
 
             terminal_.stop();
             vk_.cleanup();
 
-        } catch (const std::exception& e) {
-            std::cerr << "Exception: " << e.what() << std::endl;
+        }
+        catch (const std::exception& e) {
+
+            std::cerr
+                << "Exception: "
+                << e.what()
+                << std::endl;
         }
 
         std::cout << "Clean shutdown complete.\n";
+
         std::exit(0);
     }
 

@@ -51,7 +51,23 @@ namespace chionia {
         // Device features
         // ====================================================
 
+        VkPhysicalDeviceFeatures supportedFeatures{};
+
+        vkGetPhysicalDeviceFeatures(
+            physicalDevice,
+            &supportedFeatures
+        );
+
+        // Larger point sprites are required for particle glow.
+        if (supportedFeatures.largePoints != VK_TRUE) {
+            throw std::runtime_error(
+                "Selected GPU does not support largePoints!"
+            );
+        }
+
         VkPhysicalDeviceFeatures deviceFeatures{};
+
+        deviceFeatures.largePoints = VK_TRUE;
 
         // ====================================================
         // Enumerate supported device extensions

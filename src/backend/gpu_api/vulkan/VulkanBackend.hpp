@@ -104,7 +104,7 @@ namespace chionia {
         // Point vibration controls
         std::chrono::steady_clock::time_point animationStartTime_;
 
-        bool vibrationEnabled_ = true;
+        bool vibrationEnabled_ = false;
         float vibrationAmplitude_ = 0.03f;
         float vibrationSpeed_ = 8.0f;
 

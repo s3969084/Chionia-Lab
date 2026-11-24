@@ -4,6 +4,9 @@
 #include <iostream>
 #include <chrono>
 #include <stdexcept>
+#include <mutex>
+#include <utility>
+#include <vector>
 
 namespace chionia {
 
@@ -13,7 +16,6 @@ void VulkanBackend::init() {
 
     activeVertices.clear();
 
-    // Start the point animation clock.
     animationStartTime_ = std::chrono::steady_clock::now();
 
     instance_.create("Chionia Engine", true);
@@ -93,7 +95,7 @@ void VulkanBackend::init() {
         );
     }
 
-    // Vertex buffer (if preloaded).
+    // Vertex buffer, if preloaded.
     if (!activeVertices.empty()) {
 
         vertexBuffer_.create(
@@ -139,7 +141,7 @@ void VulkanBackend::init() {
         )
     );
 
-    bool hasData =
+    const bool hasData =
         vertexBuffer_.getBuffer() != VK_NULL_HANDLE &&
         !activeVertices.empty();
 
@@ -155,12 +157,12 @@ void VulkanBackend::init() {
         !hasData
     );
 
-    // Create frame synchronization objects.
+    // Frame synchronization objects.
     syncObjects_.create(
-     logicalDevice_.get(),
-     MAX_FRAMES_IN_FLIGHT,
-     swapchain_.getImageCount()
- );
+        logicalDevice_.get(),
+        MAX_FRAMES_IN_FLIGHT,
+        swapchain_.getImageCount()
+    );
 
     std::cout
         << "[Init] VulkanBackend initialized successfully.\n";
@@ -175,22 +177,18 @@ void VulkanBackend::drawFrame(const Camera& camera) {
 
     glfwPollEvents();
 
-    // Process queued render commands.
     processRenderQueue();
 
-    // Handle window resize before acquiring another image.
     if (window_.wasResized()) {
         recreateSwapchain();
         return;
     }
 
-    // Wait until this frame's previous GPU submission finishes.
     syncObjects_.waitForFence(
         logicalDevice_.get(),
         currentFrame_
     );
 
-    // Acquire the next swapchain image.
     VkResult acquireResult = vkAcquireNextImageKHR(
         logicalDevice_.get(),
         swapchain_.get(),
@@ -200,13 +198,11 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         &imageIndex_
     );
 
-    // No image was acquired.
     if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
         recreateSwapchain();
         return;
     }
 
-    // SUBOPTIMAL still means an image was successfully acquired.
     if (
         acquireResult != VK_SUCCESS &&
         acquireResult != VK_SUBOPTIMAL_KHR
@@ -216,31 +212,25 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         );
     }
 
-    // Reset only after successful image acquisition.
+    handleVertexUpdate();
+
+    updateUniforms(imageIndex_, camera);
+
     syncObjects_.resetFence(
         logicalDevice_.get(),
         currentFrame_
     );
 
-    // Process pending vertex updates.
-    handleVertexUpdate();
-
-    // Update camera and animation uniforms.
-    updateUniforms(imageIndex_, camera);
-
-    // Submit GPU rendering work.
     submitFrame(
         imageIndex_,
         currentFrame_
     );
 
-    // Present the rendered image.
     VkResult presentResult = presentFrame(
         imageIndex_,
         currentFrame_
     );
 
-    // Determine whether the swapchain needs recreation.
     const bool needsRecreation =
         acquireResult == VK_SUBOPTIMAL_KHR ||
         presentResult == VK_ERROR_OUT_OF_DATE_KHR ||
@@ -262,7 +252,6 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         return;
     }
 
-    // Advance to the next frame-in-flight.
     currentFrame_ = (
         currentFrame_ + 1
     ) % MAX_FRAMES_IN_FLIGHT;
@@ -312,6 +301,8 @@ void VulkanBackend::processRenderQueue() {
 
 void VulkanBackend::handleVertexUpdate() {
 
+    constexpr std::size_t EXPECTED_PARTICLE_COUNT = 12000;
+
     std::vector<Vertex> requestedVertices;
 
     // Safely retrieve pending vertex data.
@@ -330,9 +321,28 @@ void VulkanBackend::handleVertexUpdate() {
         return;
     }
 
+    // Verify fixed particle population.
+    if (
+        requestedVertices.size() !=
+        EXPECTED_PARTICLE_COUNT
+    ) {
+        throw std::runtime_error(
+            "Incoming shape must contain exactly 12,000 particles."
+        );
+    }
+
+    if (
+        !activeVertices.empty() &&
+        activeVertices.size() != requestedVertices.size()
+    ) {
+        throw std::runtime_error(
+            "Active and incoming particle populations do not match."
+        );
+    }
+
     const auto now = std::chrono::steady_clock::now();
 
-    // Calculate where the existing morph currently is.
+    // Determine current morph progress.
     float currentProgress = 1.0f;
 
     if (morphActive_) {
@@ -349,7 +359,7 @@ void VulkanBackend::handleVertexUpdate() {
         );
     }
 
-    // Apply smoothstep easing.
+    // Smoothstep easing.
     const float easedProgress =
         currentProgress * currentProgress *
         (3.0f - 2.0f * currentProgress);
@@ -363,7 +373,6 @@ void VulkanBackend::handleVertexUpdate() {
         ++i
     ) {
 
-        // Incoming vertex contains the destination position.
         const glm::vec3 targetPosition =
             requestedVertices[i].targetPosition;
 
@@ -371,15 +380,10 @@ void VulkanBackend::handleVertexUpdate() {
 
         if (!activeVertices.empty()) {
 
-            // Map the old particle index to the new particle count.
-            const std::size_t oldIndex =
-                (i * activeVertices.size()) /
-                requestedVertices.size();
+            // Matching indices between equal-sized populations.
+            const Vertex& oldVertex = activeVertices[i];
 
-            const Vertex& oldVertex =
-                activeVertices[oldIndex];
-
-            // Calculate its actual position at this moment.
+            // Calculate where this particle currently is.
             currentPosition = glm::mix(
                 oldVertex.position,
                 oldVertex.targetPosition,
@@ -396,50 +400,52 @@ void VulkanBackend::handleVertexUpdate() {
         newVertices.push_back(vertex);
     }
 
-    // Replace CPU-side vertex data.
-    activeVertices = std::move(newVertices);
+    const bool needsInitialRecording =
+        vertexBuffer_.getBuffer() == VK_NULL_HANDLE;
 
-    // Wait for previous GPU operations to finish.
-    VkResult idleResult = vkDeviceWaitIdle(
+    // Wait until previous GPU work has finished.
+    syncObjects_.waitAllFrames(
         logicalDevice_.get()
     );
 
-    if (idleResult != VK_SUCCESS) {
-        throw std::runtime_error(
-            "Failed to wait for GPU before vertex update!"
-        );
-    }
-
-    vertexBuffer_.destroy();
-
-    vertexBuffer_.create(
+    // Upload the new vertex data.
+    vertexBuffer_.update(
         logicalDevice_.get(),
         physicalDevice_.getMemoryProperties(),
         commandPool_.get(),
         logicalDevice_.getGraphicsQueue(),
-        activeVertices
+        newVertices
     );
 
-    // Re-record command buffers with the new vertex buffer.
-    commandBuffers_.record(
-        renderPass_.get(),
-        framebuffers_.getAll(),
-        swapchain_.getExtent(),
-        renderer_.getPipeline(),
-        renderer_.getPipelineLayout(),
-        vertexBuffer_.getBuffer(),
-        static_cast<uint32_t>(activeVertices.size()),
-        uniformBuffer_.getDescriptorSets(),
-        false
-    );
+    activeVertices = std::move(newVertices);
 
-    // Start a fresh two-second morph.
+    // Record command buffers after the first buffer creation.
+    if (needsInitialRecording) {
+
+        commandBuffers_.record(
+            renderPass_.get(),
+            framebuffers_.getAll(),
+            swapchain_.getExtent(),
+            renderer_.getPipeline(),
+            renderer_.getPipelineLayout(),
+            vertexBuffer_.getBuffer(),
+            static_cast<uint32_t>(activeVertices.size()),
+            uniformBuffer_.getDescriptorSets(),
+            false
+        );
+
+        std::cout
+            << "[Vulkan] Initial vertex command buffers recorded.\n";
+    }
+
+    // Start a fresh morph.
     morphStartTime_ = now;
     morphProgress_ = 0.0f;
     morphActive_ = true;
 
     std::cout
-        << "[Morph] New target uploaded. Transition started.\n";
+        << "[Morph] New 12,000-particle target uploaded. "
+        << "Transition started.\n";
 }
 
 
@@ -567,7 +573,6 @@ void VulkanBackend::updateUniforms(
 
     const auto now = std::chrono::steady_clock::now();
 
-    // Existing vibration animation.
     const float elapsedTime =
         std::chrono::duration<float>(
             now - animationStartTime_
@@ -580,7 +585,6 @@ void VulkanBackend::updateUniforms(
         vibrationEnabled_ ? 1.0f : 0.0f
     );
 
-    // Morph animation.
     if (morphActive_) {
 
         const float morphElapsed =
@@ -604,7 +608,6 @@ void VulkanBackend::updateUniforms(
         }
     }
 
-    // Keep morphing enabled after completion.
     ubo.morph = glm::vec4(
         morphProgress_,
         1.0f,
@@ -635,7 +638,6 @@ void VulkanBackend::recreateSwapchain() {
         &height
     );
 
-    // Wait until the window has a valid framebuffer size.
     while (width == 0 || height == 0) {
 
         glfwWaitEvents();
@@ -647,7 +649,6 @@ void VulkanBackend::recreateSwapchain() {
         );
     }
 
-    // Ensure all GPU and presentation operations have finished.
     VkResult idleResult = vkDeviceWaitIdle(
         logicalDevice_.get()
     );
@@ -658,18 +659,15 @@ void VulkanBackend::recreateSwapchain() {
         );
     }
 
-    // Destroy old synchronization objects.
     syncObjects_.destroy(
         logicalDevice_.get()
     );
 
-    // Free command buffers before destroying resources they reference.
     commandBuffers_.free(
         logicalDevice_.get(),
         commandPool_.get()
     );
 
-    // Destroy old swapchain-dependent resources.
     framebuffers_.destroy(
         logicalDevice_.get()
     );
@@ -701,10 +699,7 @@ void VulkanBackend::recreateSwapchain() {
         logicalDevice_.get()
     );
 
-    // --------------------------------------------------------
-    // CREATE NEW SWAPCHAIN
-    // --------------------------------------------------------
-
+    // Create new swapchain.
     swapchain_.create(
         physicalDevice_.get(),
         logicalDevice_.get(),
@@ -714,10 +709,7 @@ void VulkanBackend::recreateSwapchain() {
         window_.getGLFWwindow()
     );
 
-    // --------------------------------------------------------
-    // CREATE NEW RENDER PASS AND RENDERER
-    // --------------------------------------------------------
-
+    // Create new render pass and renderer.
     renderPass_.create(
         logicalDevice_.get(),
         swapchain_.getImageFormat()
@@ -731,10 +723,7 @@ void VulkanBackend::recreateSwapchain() {
         shaderPath_Frag
     );
 
-    // --------------------------------------------------------
-    // CREATE NEW FRAMEBUFFERS
-    // --------------------------------------------------------
-
+    // Create new framebuffers.
     framebuffers_.create(
         logicalDevice_.get(),
         renderPass_.get(),
@@ -742,20 +731,14 @@ void VulkanBackend::recreateSwapchain() {
         swapchain_.getExtent()
     );
 
-    // --------------------------------------------------------
-    // RECREATE UNIFORM BUFFERS
-    // --------------------------------------------------------
-
+    // Recreate uniform buffers.
     uniformBuffer_.create(
         logicalDevice_.get(),
         physicalDevice_.getMemoryProperties(),
         swapchain_.getImageCount()
     );
 
-    // --------------------------------------------------------
-    // RECREATE DESCRIPTOR POOL
-    // --------------------------------------------------------
-
+    // Recreate descriptor pool.
     VkDescriptorPoolSize poolSize{
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         static_cast<uint32_t>(swapchain_.getImageCount())
@@ -784,10 +767,7 @@ void VulkanBackend::recreateSwapchain() {
         );
     }
 
-    // --------------------------------------------------------
-    // RECREATE DESCRIPTOR SETS
-    // --------------------------------------------------------
-
+    // Recreate descriptor sets.
     uniformBuffer_.createDescriptorSets(
         logicalDevice_.get(),
         descriptorPool_,
@@ -795,10 +775,7 @@ void VulkanBackend::recreateSwapchain() {
         swapchain_.getImageCount()
     );
 
-    // --------------------------------------------------------
-    // RECREATE COMMAND BUFFERS
-    // --------------------------------------------------------
-
+    // Recreate command buffers.
     commandBuffers_.allocate(
         logicalDevice_.get(),
         commandPool_.get(),
@@ -823,17 +800,13 @@ void VulkanBackend::recreateSwapchain() {
         !hasData
     );
 
-    // --------------------------------------------------------
-    // RECREATE SYNCHRONIZATION OBJECTS
-    // --------------------------------------------------------
-
+    // Recreate synchronization objects.
     syncObjects_.create(
         logicalDevice_.get(),
         MAX_FRAMES_IN_FLIGHT,
         swapchain_.getImageCount()
     );
 
-    // Reset frame tracking.
     currentFrame_ = 0;
     imageIndex_ = 0;
 
