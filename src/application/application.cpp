@@ -199,6 +199,212 @@ namespace chionia {
             return config;
         }
 
+        using OutlinePath = std::vector<glm::vec3>;
+
+        std::vector<OutlinePath> getShapeOutlinePaths(
+            const std::string& filename,
+            const PointCloudBounds& bounds
+        ) {
+            const glm::vec3 center =
+                (bounds.minimum + bounds.maximum) * 0.5f;
+            std::vector<OutlinePath> paths;
+
+            if (filename.find("cube.json") != std::string::npos) {
+                std::array<glm::vec3, 8> corners;
+                for (std::size_t i = 0; i < corners.size(); ++i) {
+                    corners[i] = glm::vec3(
+                        (i & 1U) == 0 ? bounds.minimum.x : bounds.maximum.x,
+                        (i & 2U) == 0 ? bounds.minimum.y : bounds.maximum.y,
+                        (i & 4U) == 0 ? bounds.minimum.z : bounds.maximum.z
+                    );
+                }
+
+                for (std::size_t i = 0; i < corners.size(); ++i) {
+                    for (std::size_t axis = 0; axis < 3; ++axis) {
+                        const std::size_t adjacent = i ^ (1U << axis);
+                        if (i < adjacent) {
+                            paths.push_back({corners[i], corners[adjacent]});
+                        }
+                    }
+                }
+            }
+            else if (filename.find("pyramid.json") != std::string::npos) {
+                const std::array<glm::vec3, 4> base = {{
+                    {bounds.minimum.x, bounds.minimum.y, bounds.minimum.z},
+                    {bounds.maximum.x, bounds.minimum.y, bounds.minimum.z},
+                    {bounds.maximum.x, bounds.minimum.y, bounds.maximum.z},
+                    {bounds.minimum.x, bounds.minimum.y, bounds.maximum.z}
+                }};
+                const glm::vec3 apex(center.x, bounds.maximum.y, center.z);
+
+                for (std::size_t i = 0; i < base.size(); ++i) {
+                    paths.push_back({base[i], base[(i + 1) % base.size()]});
+                    paths.push_back({base[i], apex});
+                }
+            }
+            else if (filename.find("cone.json") != std::string::npos) {
+                constexpr std::size_t RING_SEGMENTS = 48;
+                constexpr std::size_t SPOKE_COUNT = 8;
+                const float radiusX =
+                    (bounds.maximum.x - bounds.minimum.x) * 0.5f;
+                const float radiusZ =
+                    (bounds.maximum.z - bounds.minimum.z) * 0.5f;
+
+                OutlinePath baseRing;
+                baseRing.reserve(RING_SEGMENTS + 1);
+                for (std::size_t i = 0; i <= RING_SEGMENTS; ++i) {
+                    const float angle =
+                        static_cast<float>(i) /
+                        static_cast<float>(RING_SEGMENTS) * 6.28318530718f;
+                    baseRing.emplace_back(
+                        center.x + std::cos(angle) * radiusX,
+                        bounds.minimum.y,
+                        center.z + std::sin(angle) * radiusZ
+                    );
+                }
+                paths.push_back(std::move(baseRing));
+
+                const glm::vec3 apex(center.x, bounds.maximum.y, center.z);
+                for (std::size_t i = 0; i < SPOKE_COUNT; ++i) {
+                    const float angle =
+                        static_cast<float>(i) /
+                        static_cast<float>(SPOKE_COUNT) * 6.28318530718f;
+                    const glm::vec3 basePoint(
+                        center.x + std::cos(angle) * radiusX,
+                        bounds.minimum.y,
+                        center.z + std::sin(angle) * radiusZ
+                    );
+                    paths.push_back({basePoint, apex});
+                }
+            }
+
+            return paths;
+        }
+
+        std::vector<glm::vec3> sampleOutlinePaths(
+            const std::vector<OutlinePath>& paths,
+            std::size_t pointCount
+        ) {
+            struct MeasuredPath {
+                const OutlinePath* points = nullptr;
+                std::vector<double> cumulativeLength;
+                double length = 0.0;
+                std::size_t sampleCount = 0;
+                double fractionalRemainder = 0.0;
+            };
+
+            std::vector<MeasuredPath> measuredPaths;
+            measuredPaths.reserve(paths.size());
+            double totalLength = 0.0;
+
+            for (const OutlinePath& path : paths) {
+                if (path.size() < 2) {
+                    continue;
+                }
+
+                MeasuredPath measured;
+                measured.points = &path;
+                measured.cumulativeLength.push_back(0.0);
+                for (std::size_t i = 1; i < path.size(); ++i) {
+                    measured.length += glm::length(path[i] - path[i - 1]);
+                    measured.cumulativeLength.push_back(measured.length);
+                }
+                if (measured.length <= 0.0) {
+                    continue;
+                }
+                totalLength += measured.length;
+                measuredPaths.push_back(std::move(measured));
+            }
+
+            if (measuredPaths.empty() || pointCount == 0 || totalLength <= 0.0) {
+                return {};
+            }
+
+            std::size_t assignedCount = 0;
+            for (MeasuredPath& path : measuredPaths) {
+                const double exactCount =
+                    static_cast<double>(pointCount) * path.length / totalLength;
+                path.sampleCount = std::max<std::size_t>(
+                    2,
+                    static_cast<std::size_t>(std::floor(exactCount))
+                );
+                path.fractionalRemainder = exactCount - std::floor(exactCount);
+                assignedCount += path.sampleCount;
+            }
+
+            while (assignedCount < pointCount) {
+                auto next = std::max_element(
+                    measuredPaths.begin(),
+                    measuredPaths.end(),
+                    [](const MeasuredPath& a, const MeasuredPath& b) {
+                        return a.fractionalRemainder < b.fractionalRemainder;
+                    }
+                );
+                ++next->sampleCount;
+                next->fractionalRemainder = -1.0;
+                ++assignedCount;
+            }
+
+            while (assignedCount > pointCount) {
+                auto next = std::max_element(
+                    measuredPaths.begin(),
+                    measuredPaths.end(),
+                    [](const MeasuredPath& a, const MeasuredPath& b) {
+                        return a.sampleCount < b.sampleCount;
+                    }
+                );
+                if (next == measuredPaths.end() || next->sampleCount <= 2) {
+                    break;
+                }
+                --next->sampleCount;
+                --assignedCount;
+            }
+
+            std::vector<glm::vec3> result;
+            result.reserve(pointCount);
+            for (const MeasuredPath& path : measuredPaths) {
+                for (std::size_t i = 0; i < path.sampleCount; ++i) {
+                    const double fraction =
+                        path.sampleCount == 1
+                        ? 0.0
+                        : static_cast<double>(i) /
+                            static_cast<double>(path.sampleCount - 1);
+                    const double targetDistance = fraction * path.length;
+                    const auto upper = std::lower_bound(
+                        path.cumulativeLength.begin(),
+                        path.cumulativeLength.end(),
+                        targetDistance
+                    );
+                    if (upper == path.cumulativeLength.begin()) {
+                        result.push_back(path.points->front());
+                        continue;
+                    }
+                    if (upper == path.cumulativeLength.end()) {
+                        result.push_back(path.points->back());
+                        continue;
+                    }
+
+                    const std::size_t segment = static_cast<std::size_t>(
+                        upper - path.cumulativeLength.begin()
+                    ) - 1;
+                    const double startDistance = path.cumulativeLength[segment];
+                    const double segmentLength =
+                        path.cumulativeLength[segment + 1] - startDistance;
+                    const float segmentFraction = segmentLength > 0.0
+                        ? static_cast<float>(
+                            (targetDistance - startDistance) / segmentLength
+                        )
+                        : 0.0f;
+                    result.push_back(glm::mix(
+                        (*path.points)[segment],
+                        (*path.points)[segment + 1],
+                        segmentFraction
+                    ));
+                }
+            }
+            return result;
+        }
+
     }
 
     Application::Application()
@@ -420,6 +626,10 @@ namespace chionia {
             RenderCommandType::SetGroundReflectionEnabled,
             settings.groundReflectionEnabled
         );
+        enqueueBool(
+            RenderCommandType::SetEnergyEffectsEnabled,
+            settings.energyEffectsEnabled
+        );
     }
 
     void Application::updateObjectDrag(
@@ -491,13 +701,21 @@ namespace chionia {
             });
             queueRenderSettingsForRendering(scene_.getRenderSettings());
 
-            auto queueShape = [this](const std::string& filename) {
+            bool shapeOutlinesEnabled = true;
+            auto queueShape = [this, &shapeOutlinesEnabled](
+                const std::string& filename,
+                std::optional<bool> outlineOverride = std::nullopt
+            ) {
+                if (outlineOverride.has_value()) {
+                    shapeOutlinesEnabled = *outlineOverride;
+                }
 
                 PointCloud sourceCloud =
                     PointCloudLoader::loadPointCloudFromFile(filename);
 
                 const std::size_t sourcePointCount =
                     sourceCloud.getPointCount();
+                const auto sourceBounds = sourceCloud.getBounds();
 
                 const ShapeSamplingConfig samplingConfig =
                     getSamplingConfig(filename);
@@ -533,6 +751,35 @@ namespace chionia {
                     );
                 }
 
+                std::vector<glm::vec3> outlinePositions;
+                if (shapeOutlinesEnabled && sourceBounds) {
+                    const auto outlinePaths = getShapeOutlinePaths(
+                        filename,
+                        *sourceBounds
+                    );
+                    if (!outlinePaths.empty()) {
+                        const std::size_t outlinePointCount = std::min(
+                            ShapeResampler::PARTICLE_COUNT * 6 / 100,
+                            ShapeResampler::PARTICLE_COUNT / 4
+                        );
+                        outlinePositions = sampleOutlinePaths(
+                            outlinePaths,
+                            outlinePointCount
+                        );
+                        if (outlinePositions.size() == outlinePointCount) {
+                            std::copy(
+                                outlinePositions.begin(),
+                                outlinePositions.end(),
+                                targetPositions.end() -
+                                    static_cast<std::ptrdiff_t>(outlinePointCount)
+                            );
+                        }
+                        else {
+                            outlinePositions.clear();
+                        }
+                    }
+                }
+
                 // Consecutive spacing is meaningful for a single
                 // ordered curve, but not for a volume or surface.
                 if (
@@ -544,8 +791,16 @@ namespace chionia {
 
                 PointCloud renderCloud(filename);
 
-                for (const auto& position : targetPositions) {
-                    renderCloud.addPoint(position);
+                const std::size_t firstOutlinePoint =
+                    targetPositions.size() - outlinePositions.size();
+                for (std::size_t i = 0; i < targetPositions.size(); ++i) {
+                    const bool isOutlinePoint = i >= firstOutlinePoint;
+                    renderCloud.addPoint(
+                        targetPositions[i],
+                        isOutlinePoint
+                            ? glm::vec4(0.0f, 0.95f, 1.0f, 1.0f)
+                            : glm::vec4(1.0f)
+                    );
                 }
 
                 std::cout
@@ -554,6 +809,8 @@ namespace chionia {
                     << sourcePointCount
                     << "\n[Shape Loader] Resampled points: "
                     << renderCloud.getPointCount()
+                    << "\n[Shape Loader] Outline points: "
+                    << outlinePositions.size()
                     << '\n';
 
                 sceneCommandQueue_.enqueue(
@@ -606,12 +863,11 @@ namespace chionia {
                 previousFrameTime = frameStart;
 
                 const ImGuiIO& io = ImGui::GetIO();
-                if (!io.WantCaptureMouse && !io.WantCaptureKeyboard) {
-                    controller_.update(
-                        vk_.getWindow().getGLFWwindow(),
-                        deltaTime
-                    );
-                }
+                controller_.update(
+                    vk_.getWindow().getGLFWwindow(),
+                    deltaTime,
+                    !io.WantCaptureMouse && !io.WantCaptureKeyboard
+                );
                 updateObjectDrag(
                     vk_.getWindow().getGLFWwindow(),
                     io.WantCaptureMouse || io.WantCaptureKeyboard
@@ -620,7 +876,8 @@ namespace chionia {
                 editorPanel_.draw(
                     activeSceneObjectId_,
                     queueShape,
-                    camera_
+                    camera_,
+                    controller_
                 );
 
                 processSceneCommands();

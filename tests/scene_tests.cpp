@@ -1,4 +1,6 @@
 #include "core/commands/scene_command_queue.hpp"
+#include "graphics/conversion/point_vertex_converter.hpp"
+#include "lesson/solar_system_lesson.hpp"
 #include "scene/procedural/infinity_generator.hpp"
 #include "scene/scene.hpp"
 
@@ -183,6 +185,101 @@ namespace {
         );
     }
 
+    void testSolarSystemLessonBuildsAndExtendsScene() {
+        chionia::SolarSystemLesson lesson;
+        require(!lesson.hasSolarSystem(), "Lesson should start without a scene.");
+        require(
+            lesson.buildPointCloud().empty(),
+            "Lesson should start with an empty point cloud."
+        );
+
+        require(
+            lesson.applyTranscript(
+                "Our solar system consists of the Sun and the objects that orbit it."
+            ),
+            "Solar-system text should create the first scene."
+        );
+        require(lesson.hasSolarSystem(), "Solar-system scene should be active.");
+        require(
+            !lesson.hasGravityExplanation(),
+            "The gravity layer should wait for its own explanation."
+        );
+
+        const chionia::PointCloud initialScene = lesson.buildPointCloud();
+        require(
+            initialScene.getPointCount() > 2000,
+            "Solar-system scene should contain the Sun, planets, and orbit details."
+        );
+
+        const auto initialColors = initialScene.getPoints();
+        require(
+            initialColors.front().color.r > initialColors.front().color.b,
+            "The Sun should have a warm color."
+        );
+        require(
+            lesson.applyTranscript(
+                "Gravity from the massive Sun keeps the planets in orbit around it."
+            ),
+            "Gravity text should add an explanatory layer."
+        );
+        require(
+            lesson.hasGravityExplanation(),
+            "Gravity explanation should be recorded."
+        );
+
+        const chionia::PointCloud extendedScene = lesson.buildPointCloud();
+        require(
+            extendedScene.getPointCount() == initialScene.getPointCount(),
+            "Adding gravity should preserve the fixed morph particle budget."
+        );
+        require(
+            extendedScene.getPoints().front().color == initialScene.getPoints().front().color,
+            "Adding gravity should preserve the existing solar-system points."
+        );
+        const glm::vec4 gravityColor(0.12f, 0.66f, 0.82f, 0.76f);
+        const auto hasGravityPoint = [&gravityColor](const chionia::PointCloud& cloud) {
+            for (const auto& point : cloud.getPoints()) {
+                if (point.color == gravityColor) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        require(
+            !hasGravityPoint(initialScene) && hasGravityPoint(extendedScene),
+            "Gravity should add its own visible orbit vectors."
+        );
+        require(
+            !lesson.applyTranscript("The classroom is listening carefully."),
+            "Unrelated text should leave the lesson scene unchanged."
+        );
+        require(
+            !lesson.applyTranscript("Gravity keeps the planets in orbit."),
+            "Repeating an existing concept should not duplicate it."
+        );
+
+        lesson.clear();
+        require(!lesson.hasSolarSystem(), "Clearing should remove the solar system.");
+        require(
+            lesson.buildPointCloud().empty(),
+            "Clearing should return an empty point cloud."
+        );
+    }
+
+    void testPointCloudVertexConversionPreservesColors() {
+        chionia::PointCloud cloud("colored points");
+        const glm::vec4 expectedColor(0.15f, 0.72f, 0.96f, 0.43f);
+        cloud.addPoint(glm::vec3(1.0f, 2.0f, 3.0f), expectedColor);
+
+        const auto vertices =
+            chionia::PointVertexConverter::convertPointCloudToVertices(cloud);
+        require(vertices.size() == 1, "One point should convert to one vertex.");
+        require(
+            vertices.front().color == expectedColor,
+            "Point-cloud color should reach the GPU vertex data."
+        );
+    }
+
 }
 
 int main() {
@@ -191,6 +288,8 @@ int main() {
         testSceneRemovalAndLookup();
         testSceneCommandQueueFifo();
         testInfinityGenerator();
+        testSolarSystemLessonBuildsAndExtendsScene();
+        testPointCloudVertexConversionPreservesColors();
     }
     catch (const std::exception& error) {
         std::cerr << "Scene tests failed: " << error.what() << '\n';

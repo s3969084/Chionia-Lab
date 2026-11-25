@@ -1,13 +1,13 @@
 
 #version 450
 
-layout(location = 0) flat in float inBreathing;
-layout(location = 1) flat in float inPulse;
-layout(location = 2) flat in float inSpark;
-layout(location = 3) flat in float inTrailAngle;
-layout(location = 4) flat in float inPalettePosition;
-layout(location = 5) flat in float inReflection;
-layout(location = 6) flat in float inReflectionStrength;
+layout(location = 0) flat in float inPulse;
+layout(location = 1) flat in float inTrailAngle;
+layout(location = 2) flat in float inPalettePosition;
+layout(location = 3) flat in float inReflection;
+layout(location = 4) flat in float inReflectionStrength;
+layout(location = 5) flat in vec4 inPointColor;
+layout(location = 6) flat in float inEnergyEffectsEnabled;
 
 layout(location = 0) out vec4 outColor;
 
@@ -61,39 +61,54 @@ void main() {
         1.0
     );
 
+    // Keep the highlight cool and tinted so bright cores retain their colour.
     vec3 softWhite = vec3(
-        0.95,
-        0.98,
-        1.0
+        0.62,
+        0.80,
+        0.96
     );
 
     // --------------------------------------------------
     // TRAVELLING COLOUR TRANSITION
     // --------------------------------------------------
 
-    vec3 particleColor = mix(
-        cyan,
-        electricBlue,
-        smoothstep(0.05, 0.55, inPalettePosition)
-    );
+    vec3 particleColor = inPointColor.rgb;
+    if (inEnergyEffectsEnabled > 0.5) {
+        particleColor = mix(
+            cyan,
+            electricBlue,
+            smoothstep(0.05, 0.55, inPalettePosition)
+        );
 
-    particleColor = mix(
-        particleColor,
-        plasmaViolet,
-        smoothstep(0.48, 0.98, inPalettePosition)
-    );
+        particleColor = mix(
+            particleColor,
+            plasmaViolet,
+            smoothstep(0.48, 0.98, inPalettePosition)
+        );
 
-    particleColor = mix(
-        particleColor,
-        iceBlue,
-        smoothstep(0.35, 0.95, inPulse) * 0.22
-    );
+        particleColor = mix(
+            particleColor,
+            iceBlue,
+            smoothstep(0.35, 0.95, inPulse) * 0.22
+        );
 
-    particleColor = mix(
-        particleColor,
-        softWhite,
-        core * 0.18
-    );
+        particleColor = mix(
+            particleColor,
+            softWhite,
+            core * 0.03
+        );
+
+        float customColorAmount = smoothstep(
+            0.02,
+            0.18,
+            length(vec3(1.0) - inPointColor.rgb)
+        );
+        particleColor = mix(
+            particleColor,
+            mix(particleColor, inPointColor.rgb, 0.82),
+            customColorAmount
+        );
+    }
 
     // --------------------------------------------------
     // DIRECTIONAL ENERGY TRAIL
@@ -151,27 +166,16 @@ void main() {
     );
 
     // --------------------------------------------------
-    // PLASMA SPARK
-    // --------------------------------------------------
-
-    float sparkCore = inSpark *
-        (1.0 - smoothstep(0.0, 0.25, dist));
-
-    float sparkHalo = inSpark *
-        exp(-dist * 7.0);
-
-    // --------------------------------------------------
     // LIGHT COMPOSITION
     // --------------------------------------------------
 
-    float intensity =
-        core * 0.85 +
-        halo * 0.20;
+    float intensity = inEnergyEffectsEnabled > 0.5
+        ? core * 0.52 + halo * 0.09
+        : core;
 
     vec3 finalColor =
         particleColor *
-        intensity *
-        inBreathing;
+        intensity;
 
     finalColor *= mix(
         vec3(1.0),
@@ -180,46 +184,41 @@ void main() {
     );
 
     // Energy trail.
-    finalColor +=
-        iceBlue *
-        trailMask *
-        trailIntensity *
-        0.18;
+    if (inEnergyEffectsEnabled > 0.5) {
+        finalColor +=
+            iceBlue *
+            trailMask *
+            trailIntensity *
+            0.18;
 
-    // Ripple highlight.
-    finalColor +=
-        iceBlue *
-        rippleBand *
-        0.10;
+        finalColor +=
+            iceBlue *
+            rippleBand *
+            0.10;
 
-    // Violet plasma spark.
-    finalColor +=
-        plasmaViolet *
-        sparkHalo *
-        0.28;
-
-    // Hot white spark centre.
-    finalColor +=
-        softWhite *
-        sparkCore *
-        0.55;
+        // The Vulkan particle pass is additive, so dense peaks accumulate
+        // quickly. Leave headroom here to keep those cores saturated in color.
+        finalColor *= 0.35;
+    }
 
     // --------------------------------------------------
     // TRANSPARENCY
     // --------------------------------------------------
 
-    float alpha = clamp(
-        core * 0.75 +
-        halo * 0.12 +
-        trailMask * trailIntensity * 0.10 +
-        rippleBand * 0.05 +
-        inSpark * 0.12,
-        0.0,
-        0.85
-    );
+    float alpha = inEnergyEffectsEnabled > 0.5
+        ? clamp(
+            core * 0.75 +
+            halo * 0.12 +
+            trailMask * trailIntensity * 0.10 +
+            rippleBand * 0.05,
+            0.0,
+            0.85
+        )
+        : core * 0.82;
 
     finalColor *= mix(1.0, inReflectionStrength, inReflection);
     alpha *= mix(1.0, inReflectionStrength, inReflection);
+    alpha *= inPointColor.a;
 
     outColor = vec4(
         finalColor,

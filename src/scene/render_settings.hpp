@@ -10,6 +10,7 @@ namespace chionia {
         bool morphingEnabled = true;
         bool autoMorphEnabled = false;
         bool groundReflectionEnabled = true;
+        bool energyEffectsEnabled = true;
     };
 
 }

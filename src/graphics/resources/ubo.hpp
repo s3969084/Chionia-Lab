@@ -19,7 +19,8 @@ namespace chionia {
 
         // x = morph progress (0.0 to 1.0)
         // y = morph enabled
-        // z/w = reserved
+        // z = travelling energy effects enabled
+        // w = elapsed time since orbital animation started
         glm::vec4 morph;
 
         // x = ground plane height used by the particle reflection

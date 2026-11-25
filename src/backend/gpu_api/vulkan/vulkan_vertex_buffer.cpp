@@ -237,10 +237,10 @@ namespace chionia {
         return bindingDescription;
     }
 
-    std::array<VkVertexInputAttributeDescription, 3>
+    std::array<VkVertexInputAttributeDescription, 13>
     VulkanVertexBuffer::getAttributeDescriptions() {
 
-        std::array<VkVertexInputAttributeDescription, 3> attributes{};
+        std::array<VkVertexInputAttributeDescription, 13> attributes{};
 
         // Attribute 0: Particle ID.
         attributes[0].binding = 0;
@@ -259,6 +259,66 @@ namespace chionia {
         attributes[2].location = 2;
         attributes[2].format = VK_FORMAT_R32G32B32_SFLOAT;
         attributes[2].offset = offsetof(Vertex, targetPosition);
+
+        // Attribute 3: Per-point colour.
+        attributes[3].binding = 0;
+        attributes[3].location = 3;
+        attributes[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributes[3].offset = offsetof(Vertex, color);
+
+        attributes[4].binding = 0;
+        attributes[4].location = 4;
+        attributes[4].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributes[4].offset = offsetof(Vertex, orbitMotion) +
+            offsetof(PointOrbitMotion, center);
+
+        attributes[5].binding = 0;
+        attributes[5].location = 5;
+        attributes[5].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributes[5].offset = offsetof(Vertex, orbitMotion) +
+            offsetof(PointOrbitMotion, axis);
+
+        attributes[6].binding = 0;
+        attributes[6].location = 6;
+        attributes[6].format = VK_FORMAT_R32_SFLOAT;
+        attributes[6].offset = offsetof(Vertex, orbitMotion) +
+            offsetof(PointOrbitMotion, angularSpeed);
+
+        attributes[7].binding = 0;
+        attributes[7].location = 7;
+        attributes[7].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributes[7].offset = offsetof(Vertex, orbitMotion) +
+            offsetof(PointOrbitMotion, secondaryCenter);
+
+        attributes[8].binding = 0;
+        attributes[8].location = 8;
+        attributes[8].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributes[8].offset = offsetof(Vertex, orbitMotion) +
+            offsetof(PointOrbitMotion, secondaryAxis);
+
+        attributes[9].binding = 0;
+        attributes[9].location = 9;
+        attributes[9].format = VK_FORMAT_R32_SFLOAT;
+        attributes[9].offset = offsetof(Vertex, orbitMotion) +
+            offsetof(PointOrbitMotion, secondaryAngularSpeed);
+
+        attributes[10].binding = 0;
+        attributes[10].location = 10;
+        attributes[10].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributes[10].offset = offsetof(Vertex, orbitMotion) +
+            offsetof(PointOrbitMotion, spinCenter);
+
+        attributes[11].binding = 0;
+        attributes[11].location = 11;
+        attributes[11].format = VK_FORMAT_R32G32B32_SFLOAT;
+        attributes[11].offset = offsetof(Vertex, orbitMotion) +
+            offsetof(PointOrbitMotion, spinAxis);
+
+        attributes[12].binding = 0;
+        attributes[12].location = 12;
+        attributes[12].format = VK_FORMAT_R32_SFLOAT;
+        attributes[12].offset = offsetof(Vertex, orbitMotion) +
+            offsetof(PointOrbitMotion, spinAngularSpeed);
 
         return attributes;
     }

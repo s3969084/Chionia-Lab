@@ -21,6 +21,7 @@ namespace chionia {
         SetVibrationEnabled,
         SetMorphingEnabled,
         SetGroundReflectionEnabled,
+        SetEnergyEffectsEnabled,
         SetPointSize,
         ReloadPipeline
     };

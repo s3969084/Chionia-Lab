@@ -167,6 +167,7 @@ namespace chionia {
 
         bool vibrationEnabled_ = false;
         bool groundReflectionEnabled_ = true;
+        bool energyEffectsEnabled_ = true;
         float vibrationAmplitude_ = 0.03f;
         float vibrationSpeed_ = 8.0f;
         bool morphingEnabled_ = true;
@@ -177,6 +178,8 @@ namespace chionia {
         bool morphActive_ = false;
         float morphDurationSeconds_ = 2.0f;
         float morphProgress_ = 1.0f;
+        std::chrono::steady_clock::time_point orbitalAnimationStartTime_;
+        bool hasOrbitalAnimation_ = false;
     };
 
 }

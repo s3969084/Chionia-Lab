@@ -13,13 +13,28 @@
 
 namespace chionia {
 
+    inline constexpr std::size_t MORPH_PARTICLE_COUNT = 192000;
+
     using PointId = std::uint64_t;
+
+    struct PointOrbitMotion {
+        glm::vec3 center{0.0f};
+        glm::vec3 axis{0.0f, 0.0f, 1.0f};
+        float angularSpeed = 0.0f;
+        glm::vec3 secondaryCenter{0.0f};
+        glm::vec3 secondaryAxis{0.0f, 0.0f, 1.0f};
+        float secondaryAngularSpeed = 0.0f;
+        glm::vec3 spinCenter{0.0f};
+        glm::vec3 spinAxis{0.0f, 0.0f, 1.0f};
+        float spinAngularSpeed = 0.0f;
+    };
 
     struct PointCloudPoint {
         PointId id = 0;
         glm::vec3 position{0.0f};
         glm::vec4 color{1.0f};
         float size = 1.0f;
+        PointOrbitMotion orbitMotion;
     };
 
     struct PointCloudBounds {
@@ -36,7 +51,8 @@ namespace chionia {
             const glm::vec3& position,
             const glm::vec4& color = glm::vec4(1.0f),
             float size = 1.0f,
-            std::string sourceId = {}
+            std::string sourceId = {},
+            const PointOrbitMotion& orbitMotion = {}
         );
 
         void clear();

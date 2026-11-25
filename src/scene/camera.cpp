@@ -16,6 +16,14 @@ namespace chionia {
         far_ = far;
     }
 
+    void Camera::setLookAtTarget(const glm::vec3& target) {
+        lookAtTarget_ = target;
+    }
+
+    float Camera::getFieldOfView() const {
+        return fov_;
+    }
+
     Transform& Camera::getTransform() {
         return transform_;
     }
@@ -26,10 +34,9 @@ namespace chionia {
 
     glm::mat4 Camera::getViewMatrix() const {
         glm::vec3 position = transform_.getPosition();
-        glm::vec3 target = glm::vec3(0.0f); // always orbiting around origin/model center
         glm::vec3 up = glm::vec3(0, 1, 0);  // world up
 
-        return glm::lookAt(position, target, up);
+        return glm::lookAt(position, lookAtTarget_, up);
     }
 
     glm::mat4 Camera::getProjectionMatrix(float aspectRatio, bool flipY) const {

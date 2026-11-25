@@ -4,14 +4,24 @@
 layout(location = 0) in uint id;
 layout(location = 1) in vec3 inPosition;
 layout(location = 2) in vec3 inTargetPosition;
+layout(location = 3) in vec4 inPointColor;
+layout(location = 4) in vec3 inOrbitCenter;
+layout(location = 5) in vec3 inOrbitAxis;
+layout(location = 6) in float inOrbitAngularSpeed;
+layout(location = 7) in vec3 inSecondaryOrbitCenter;
+layout(location = 8) in vec3 inSecondaryOrbitAxis;
+layout(location = 9) in float inSecondaryOrbitAngularSpeed;
+layout(location = 10) in vec3 inSpinCenter;
+layout(location = 11) in vec3 inSpinAxis;
+layout(location = 12) in float inSpinAngularSpeed;
 
-layout(location = 0) flat out float outBreathing;
-layout(location = 1) flat out float outPulse;
-layout(location = 2) flat out float outSpark;
-layout(location = 3) flat out float outTrailAngle;
-layout(location = 4) flat out float outPalettePosition;
-layout(location = 5) flat out float outReflection;
-layout(location = 6) flat out float outReflectionStrength;
+layout(location = 0) flat out float outPulse;
+layout(location = 1) flat out float outTrailAngle;
+layout(location = 2) flat out float outPalettePosition;
+layout(location = 3) flat out float outReflection;
+layout(location = 4) flat out float outReflectionStrength;
+layout(location = 5) flat out vec4 outPointColor;
+layout(location = 6) flat out float outEnergyEffectsEnabled;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 model;
@@ -32,6 +42,23 @@ float hash(uint x) {
     return float(x) / 4294967295.0;
 }
 
+vec3 rotateAroundAxis(
+    vec3 position,
+    vec3 center,
+    vec3 axis,
+    float angle
+) {
+    vec3 normalizedAxis = normalize(axis);
+    vec3 relativePosition = position - center;
+    float cosine = cos(angle);
+    float sine = sin(angle);
+
+    return center +
+        relativePosition * cosine +
+        cross(normalizedAxis, relativePosition) * sine +
+        normalizedAxis * dot(normalizedAxis, relativePosition) * (1.0 - cosine);
+}
+
 void main() {
 
     bool isReflection = (id & 0x80000000u) != 0u;
@@ -41,6 +68,7 @@ void main() {
     float amplitude = ubo.animation.y;
     float speed = ubo.animation.z;
     float vibrationEnabled = ubo.animation.w;
+    float energyEffectsEnabled = ubo.morph.z;
 
     // --------------------------------------------------
     // SHAPE MORPHING
@@ -64,6 +92,68 @@ void main() {
         inTargetPosition,
         progress
     );
+
+    float orbitalBlend = smoothstep(0.90, 1.0, morphProgress);
+    vec3 secondaryOrbitCenter = inSecondaryOrbitCenter;
+    vec3 spinCenter = inSpinCenter;
+    vec3 spinAxis = normalize(inSpinAxis);
+    if (abs(inOrbitAngularSpeed) > 0.0001) {
+        float orbitAngle = ubo.morph.w * inOrbitAngularSpeed;
+        vec3 rotatedPosition = rotateAroundAxis(
+            basePosition,
+            inOrbitCenter,
+            inOrbitAxis,
+            orbitAngle
+        );
+        vec3 rotatedSecondaryCenter = rotateAroundAxis(
+            secondaryOrbitCenter,
+            inOrbitCenter,
+            inOrbitAxis,
+            orbitAngle
+        );
+        secondaryOrbitCenter = mix(
+            secondaryOrbitCenter,
+            rotatedSecondaryCenter,
+            orbitalBlend
+        );
+        vec3 rotatedSpinCenter = rotateAroundAxis(
+            spinCenter,
+            inOrbitCenter,
+            inOrbitAxis,
+            orbitAngle
+        );
+        spinCenter = mix(spinCenter, rotatedSpinCenter, orbitalBlend);
+        vec3 rotatedSpinAxis = rotateAroundAxis(
+            spinAxis,
+            vec3(0.0),
+            inOrbitAxis,
+            orbitAngle
+        );
+        spinAxis = normalize(mix(spinAxis, rotatedSpinAxis, orbitalBlend));
+        basePosition = mix(basePosition, rotatedPosition, orbitalBlend);
+    }
+    if (abs(inSecondaryOrbitAngularSpeed) > 0.0001) {
+        vec3 secondaryRotatedPosition = rotateAroundAxis(
+            basePosition,
+            secondaryOrbitCenter,
+            inSecondaryOrbitAxis,
+            ubo.morph.w * inSecondaryOrbitAngularSpeed
+        );
+        basePosition = mix(
+            basePosition,
+            secondaryRotatedPosition,
+            orbitalBlend
+        );
+    }
+    if (abs(inSpinAngularSpeed) > 0.0001) {
+        vec3 spunPosition = rotateAroundAxis(
+            basePosition,
+            spinCenter,
+            spinAxis,
+            ubo.morph.w * inSpinAngularSpeed
+        );
+        basePosition = mix(basePosition, spunPosition, orbitalBlend);
+    }
 
     // --------------------------------------------------
     // PARTICLE VIBRATION
@@ -92,66 +182,17 @@ void main() {
         basePosition +
         direction * vibration * amplitude * vibrationEnabled;
 
-    // --------------------------------------------------
-    // TRAVELLING ENERGY PULSE
-    // --------------------------------------------------
-
-    float pulseSpeed = 2.0;
-    float pulseFrequency = 3.0;
-
-    float spatialPhase =
-        length(basePosition) * pulseFrequency;
-
-    float particlePhase =
-        hash(particleId + 5u) * 0.5;
-
-    float pulseWave = 0.5 + 0.5 * sin(
-        elapsedTime * pulseSpeed -
-        spatialPhase +
-        particlePhase
-    );
-
-    outPulse = pulseWave;
-
-    // --------------------------------------------------
-    // PLASMA SPARK GENERATION
-    // --------------------------------------------------
-
-    // Only a small percentage of particles can spark.
-    float sparkSeed = hash(particleId + 19u);
-
-    float sparkEligibility = smoothstep(
-        0.86,
-        0.98,
-        sparkSeed
-    );
-
-    // Sparks activate near the pulse peak.
-    float sparkEnvelope = smoothstep(
-        0.90,
-        0.99,
-        pulseWave
-    );
-
-    outSpark = sparkEligibility * sparkEnvelope;
+    // Keep particle brightness and size steady; object motion remains animated.
+    outPulse = 0.5;
 
     // --------------------------------------------------
     // ENERGY TRAIL DIRECTION
     // --------------------------------------------------
 
     // Give each particle a slightly different streak angle.
-    outTrailAngle =
-        hash(particleId + 23u) * 6.28318530718;
-
-    // --------------------------------------------------
-    // BREATHING / ENERGY INTENSITY
-    // --------------------------------------------------
-
-    outBreathing = mix(
-        0.72,
-        1.0,
-        smoothstep(0.25, 0.85, pulseWave)
-    );
+    outTrailAngle = energyEffectsEnabled > 0.5
+        ? hash(particleId + 23u) * 6.28318530718
+        : 0.0;
 
     // --------------------------------------------------
     // PROJECTION
@@ -181,7 +222,11 @@ void main() {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     }
 
-    outPalettePosition = clamp(animatedPosition.x + 0.5, 0.0, 1.0);
+    outPalettePosition = energyEffectsEnabled > 0.5
+        ? clamp(animatedPosition.x + 0.5, 0.0, 1.0)
+        : 0.5;
+    outPointColor = inPointColor;
+    outEnergyEffectsEnabled = energyEffectsEnabled;
     outReflection = drawReflection ? 1.0 : 0.0;
     outReflectionStrength = drawReflection
         ? 0.38 *
@@ -189,9 +234,7 @@ void main() {
             exp(-ubo.ground.z * 3.0)
         : 0.0;
 
-    gl_PointSize = mix(
-        6.5,
-        9.5,
-        pulseWave
-    ) * mix(1.0, 0.76, outReflection);
+    gl_PointSize = energyEffectsEnabled > 0.5
+        ? 6.9 * mix(1.0, 0.76, outReflection)
+        : 4.5 * mix(1.0, 0.76, outReflection);
 }

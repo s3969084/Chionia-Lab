@@ -15,7 +15,8 @@ namespace chionia {
         const glm::vec3& position,
         const glm::vec4& color,
         float size,
-        std::string sourceId
+        std::string sourceId,
+        const PointOrbitMotion& orbitMotion
     ) {
         validatePoint(position, color, size);
 
@@ -41,6 +42,7 @@ namespace chionia {
         point.position = position;
         point.color = color;
         point.size = size;
+        point.orbitMotion = orbitMotion;
 
         points_.push_back(point);
 

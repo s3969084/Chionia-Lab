@@ -420,6 +420,10 @@ void VulkanBackend::processRenderQueue() {
                 groundReflectionEnabled_ = std::get<bool>(cmd.data);
                 break;
 
+            case RenderCommandType::SetEnergyEffectsEnabled:
+                energyEffectsEnabled_ = std::get<bool>(cmd.data);
+                break;
+
             case RenderCommandType::SetPointSize:
             case RenderCommandType::ReloadPipeline:
             default:
@@ -464,6 +468,20 @@ void VulkanBackend::handleVertexUpdate() {
         activeVertices.size() == requestedVertices.size();
 
     const auto now = std::chrono::steady_clock::now();
+
+    const bool requestedHasOrbitalAnimation = std::any_of(
+        requestedVertices.begin(),
+        requestedVertices.end(),
+        [](const Vertex& vertex) {
+            return std::abs(vertex.orbitMotion.angularSpeed) > 0.0001f ||
+                std::abs(vertex.orbitMotion.secondaryAngularSpeed) > 0.0001f ||
+                std::abs(vertex.orbitMotion.spinAngularSpeed) > 0.0001f;
+        }
+    );
+    if (requestedHasOrbitalAnimation && !hasOrbitalAnimation_) {
+        orbitalAnimationStartTime_ = now;
+    }
+    hasOrbitalAnimation_ = requestedHasOrbitalAnimation;
 
     float currentProgress = 1.0f;
 
@@ -515,6 +533,8 @@ void VulkanBackend::handleVertexUpdate() {
         vertex.id = static_cast<uint32_t>(i);
         vertex.position = currentPosition;
         vertex.targetPosition = targetPosition;
+        vertex.color = requestedVertices[i].color;
+        vertex.orbitMotion = requestedVertices[i].orbitMotion;
 
         newVertices.push_back(vertex);
     }
@@ -612,6 +632,20 @@ void VulkanBackend::handlePointCloudUpdate() {
 
     const auto now = std::chrono::steady_clock::now();
 
+    const bool requestedHasOrbitalAnimation = std::any_of(
+        requestedVertices.begin(),
+        requestedVertices.end(),
+        [](const Vertex& vertex) {
+            return std::abs(vertex.orbitMotion.angularSpeed) > 0.0001f ||
+                std::abs(vertex.orbitMotion.secondaryAngularSpeed) > 0.0001f ||
+                std::abs(vertex.orbitMotion.spinAngularSpeed) > 0.0001f;
+        }
+    );
+    if (requestedHasOrbitalAnimation && !hasOrbitalAnimation_) {
+        orbitalAnimationStartTime_ = now;
+    }
+    hasOrbitalAnimation_ = requestedHasOrbitalAnimation;
+
     float currentProgress = 1.0f;
 
     if (morphActive_) {
@@ -662,6 +696,8 @@ void VulkanBackend::handlePointCloudUpdate() {
         vertex.id = static_cast<uint32_t>(i);
         vertex.position = currentPosition;
         vertex.targetPosition = targetPosition;
+        vertex.color = requestedVertices[i].color;
+        vertex.orbitMotion = requestedVertices[i].orbitMotion;
 
         newVertices.push_back(vertex);
     }
@@ -892,8 +928,12 @@ void VulkanBackend::updateUniforms(
     ubo.morph = glm::vec4(
         morphProgress_,
         1.0f,
-        0.0f,
-        0.0f
+        energyEffectsEnabled_ ? 1.0f : 0.0f,
+        hasOrbitalAnimation_
+            ? std::chrono::duration<float>(
+                now - orbitalAnimationStartTime_
+            ).count() * animationSpeed_
+            : 0.0f
     );
 
     float lowestWorldY = std::numeric_limits<float>::infinity();

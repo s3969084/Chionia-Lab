@@ -12,13 +12,25 @@ namespace chionia {
     public:
         explicit CameraController(Camera& camera);
         void init(GLFWwindow* window);
-        void update(GLFWwindow* window, float deltaTime);
+        void update(
+            GLFWwindow* window,
+            float deltaTime,
+            bool allowUserInput = true
+        );
+
+        float getTargetOrbitRadius() const;
+        void setOrbitRadius(float radius);
+        glm::vec3 getOrbitTarget() const;
+        void setOrbitTarget(const glm::vec3& target);
+        void shiftOrbitTargetHorizontally(float screenPixels, float viewportHeight);
+        void setCinematicOrbit(bool enabled);
 
     private:
         static void scrollCallback(GLFWwindow* window, double, double yoffset);
         static std::unordered_map<GLFWwindow*, CameraController*> controllerMap_;
 
         void bindScroll(GLFWwindow* window);
+        void applyCameraTransform();
 
         Camera& camera_;
         glm::vec3 orbitTarget_;
@@ -29,6 +41,11 @@ namespace chionia {
         bool dragging_;
         glm::vec2 lastMousePos_;
         float scrollDelta_ = 0.0f;
+        bool cinematicOrbitEnabled_ = false;
+        float cinematicIdleSeconds_ = 0.0f;
+        float cinematicBaseHorizontalAngle_ = 0.0f;
+        float cinematicBaseVerticalAngle_ = 0.0f;
+        float cinematicPhase_ = 0.0f;
     };
 
 }

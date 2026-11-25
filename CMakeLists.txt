@@ -97,6 +97,8 @@ if(BUILD_TESTING)
     add_executable(Chionia_Scene_Tests
             tests/scene_tests.cpp
             src/core/resources/point_cloud.cpp
+            src/graphics/conversion/point_vertex_converter.cpp
+            src/lesson/solar_system_lesson.cpp
             src/scene/scene.cpp
             src/scene/scene_object.cpp
             src/scene/procedural/infinity_generator.cpp

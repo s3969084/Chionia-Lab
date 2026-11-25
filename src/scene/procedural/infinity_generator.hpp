@@ -7,7 +7,7 @@
 namespace chionia {
 
     struct InfinityGeneratorConfig {
-        std::size_t pointCount = 12000;
+        std::size_t pointCount = MORPH_PARTICLE_COUNT;
 
         // Radius of the point distribution around the curve's centerline.
         float thickness = 0.025f;

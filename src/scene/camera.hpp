@@ -12,6 +12,8 @@ namespace chionia {
         Camera();
 
         void setPerspective(float fov, float near, float far);
+        void setLookAtTarget(const glm::vec3& target);
+        float getFieldOfView() const;
 
         Transform& getTransform();
         const Transform& getTransform() const;
@@ -25,6 +27,7 @@ namespace chionia {
         float fov_;
         float near_;
         float far_;
+        glm::vec3 lookAtTarget_{0.0f};
 
     };
 }

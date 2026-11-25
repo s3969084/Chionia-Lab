@@ -14,7 +14,7 @@ namespace chionia {
 
     class ShapeResampler {
     public:
-        static constexpr std::size_t PARTICLE_COUNT = 12000;
+        static constexpr std::size_t PARTICLE_COUNT = MORPH_PARTICLE_COUNT;
 
         // Geometry-aware interface.
         static std::vector<glm::vec3> resample(
