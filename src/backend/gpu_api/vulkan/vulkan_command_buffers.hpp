@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 namespace chionia {
@@ -34,6 +35,20 @@ namespace chionia {
             uint32_t vertexCount,
             const std::vector<VkDescriptorSet>& descriptorSets,
             bool skipDrawing
+        );
+
+        void recordForImage(
+            uint32_t imageIndex,
+            VkRenderPass renderPass,
+            const std::vector<VkFramebuffer>& framebuffers,
+            VkExtent2D extent,
+            VkPipeline pipeline,
+            VkPipelineLayout layout,
+            VkBuffer vertexBuffer,
+            uint32_t vertexCount,
+            const std::vector<VkDescriptorSet>& descriptorSets,
+            bool skipDrawing,
+            const std::function<void(VkCommandBuffer)>& overlayRecorder
         );
 
         const std::vector<VkCommandBuffer>& getAll() const {

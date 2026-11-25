@@ -5,6 +5,9 @@ layout(location = 0) flat in float inBreathing;
 layout(location = 1) flat in float inPulse;
 layout(location = 2) flat in float inSpark;
 layout(location = 3) flat in float inTrailAngle;
+layout(location = 4) flat in float inPalettePosition;
+layout(location = 5) flat in float inReflection;
+layout(location = 6) flat in float inReflectionStrength;
 
 layout(location = 0) out vec4 outColor;
 
@@ -46,10 +49,16 @@ void main() {
         1.0
     );
 
-    vec3 plasmaGold = vec3(
-        1.0,
-        0.72,
-        0.32
+    vec3 electricBlue = vec3(
+        0.08,
+        0.32,
+        1.0
+    );
+
+    vec3 plasmaViolet = vec3(
+        0.57,
+        0.18,
+        1.0
     );
 
     vec3 softWhite = vec3(
@@ -64,20 +73,20 @@ void main() {
 
     vec3 particleColor = mix(
         cyan,
-        iceBlue,
-        smoothstep(0.20, 0.80, inPulse)
-    );
-
-    float goldAmount = smoothstep(
-        0.82,
-        0.98,
-        inPulse
+        electricBlue,
+        smoothstep(0.05, 0.55, inPalettePosition)
     );
 
     particleColor = mix(
         particleColor,
-        plasmaGold,
-        goldAmount * 0.85
+        plasmaViolet,
+        smoothstep(0.48, 0.98, inPalettePosition)
+    );
+
+    particleColor = mix(
+        particleColor,
+        iceBlue,
+        smoothstep(0.35, 0.95, inPulse) * 0.22
     );
 
     particleColor = mix(
@@ -164,6 +173,12 @@ void main() {
         intensity *
         inBreathing;
 
+    finalColor *= mix(
+        vec3(1.0),
+        vec3(0.30, 0.68, 0.95),
+        inReflection
+    );
+
     // Energy trail.
     finalColor +=
         iceBlue *
@@ -177,9 +192,9 @@ void main() {
         rippleBand *
         0.10;
 
-    // Plasma-gold spark.
+    // Violet plasma spark.
     finalColor +=
-        plasmaGold *
+        plasmaViolet *
         sparkHalo *
         0.28;
 
@@ -202,6 +217,9 @@ void main() {
         0.0,
         0.85
     );
+
+    finalColor *= mix(1.0, inReflectionStrength, inReflection);
+    alpha *= mix(1.0, inReflectionStrength, inReflection);
 
     outColor = vec4(
         finalColor,

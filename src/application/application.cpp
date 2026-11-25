@@ -2,6 +2,7 @@
 #include "application.hpp"
 
 #include <iostream>
+#include <array>
 #include <thread>
 #include <chrono>
 #include <random>
@@ -15,15 +16,43 @@
 #include <cmath>
 #include <limits>
 #include <iomanip>
+#include <string_view>
+#include <imgui.h>
 
 #include "io/json_model_loader.hpp"
 #include "scene/shapes/shape_resampler.hpp"
 #include "scene/shapes/shape_asset.hpp"
 #include "scene/shapes/shape_sampling_config.hpp"
+#include "core/commands/scene_command.hpp"
 
 namespace chionia {
 
     namespace {
+
+        constexpr std::array<std::string_view, 9> AUTO_MORPH_SHAPES = {{
+            "data/objects/shape/mobius.json",
+            "data/objects/shape/superquadric.json",
+            "data/objects/shape/double.json",
+            "data/objects/shape/cone.json",
+            "data/objects/shape/helix.json",
+            "data/objects/shape/cube.json",
+            "data/objects/shape/pyramid.json",
+            "data/objects/shape/sphere.json",
+            "data/objects/shape/trefoil_knot.json"
+        }};
+
+        constexpr auto AUTO_MORPH_INTERVAL = std::chrono::seconds(5);
+
+        std::optional<std::size_t> findAutoMorphShapeIndex(
+            std::string_view key
+        ) {
+            for (std::size_t i = 0; i < AUTO_MORPH_SHAPES.size(); ++i) {
+                if (AUTO_MORPH_SHAPES[i] == key) {
+                    return i;
+                }
+            }
+            return std::nullopt;
+        }
 
         void printSpacingDiagnostics(
             const std::vector<glm::vec3>& positions
@@ -173,7 +202,7 @@ namespace chionia {
     }
 
     Application::Application()
-        : vk_(800, 600, "Chionia Engine"),
+        : vk_(1600, 900, "Chionia Lab"),
           controller_(camera_) {
     }
 
@@ -181,25 +210,286 @@ namespace chionia {
         terminal_.stop();
     }
 
+    void Application::processSceneCommands() {
+        bool activeObjectChanged = false;
+        bool activeTransformChanged = false;
+
+        while (auto command = sceneCommandQueue_.tryDequeue()) {
+            if (auto* upsert = std::get_if<UpsertPointCloudCommand>(&*command)) {
+                const auto autoMorphIndex =
+                    findAutoMorphShapeIndex(upsert->key);
+                activeSceneObjectId_ = scene_.upsertPointCloud(
+                    std::move(upsert->key),
+                    std::move(upsert->pointCloud)
+                );
+                activeObjectChanged = true;
+
+                if (autoMorphIndex) {
+                    autoMorphShapeIndex_ = *autoMorphIndex;
+                    hasAutoMorphShape_ = true;
+                    nextAutoMorphTime_ =
+                        std::chrono::steady_clock::now() +
+                        AUTO_MORPH_INTERVAL;
+                }
+            }
+            else if (
+                auto* setTransform =
+                    std::get_if<SetSceneObjectTransformCommand>(&*command)
+            ) {
+                if (
+                    scene_.setTransform(
+                        setTransform->objectId,
+                        setTransform->transform
+                    ) &&
+                    activeSceneObjectId_ == setTransform->objectId
+                ) {
+                    activeTransformChanged = true;
+                }
+            }
+            else if (
+                auto* setAnimationSpeed =
+                    std::get_if<SetSceneObjectAnimationSpeedCommand>(&*command)
+            ) {
+                if (
+                    scene_.setAnimationSpeed(
+                        setAnimationSpeed->objectId,
+                        setAnimationSpeed->speed
+                    ) &&
+                    activeSceneObjectId_ == setAnimationSpeed->objectId
+                ) {
+                    activeObjectChanged = true;
+                }
+            }
+            else if (
+                auto* selectObject =
+                    std::get_if<SelectSceneObjectCommand>(&*command)
+            ) {
+                if (scene_.findObject(selectObject->objectId) != nullptr) {
+                    activeSceneObjectId_ = selectObject->objectId;
+                    activeObjectChanged = true;
+                }
+            }
+            else if (
+                auto* setRenderSettings =
+                    std::get_if<SetSceneRenderSettingsCommand>(&*command)
+            ) {
+                const bool wasAutoMorphEnabled = autoMorphEnabled_;
+                scene_.setRenderSettings(setRenderSettings->settings);
+                autoMorphEnabled_ =
+                    scene_.getRenderSettings().autoMorphEnabled;
+                if (!autoMorphEnabled_) {
+                    nextAutoMorphTime_ = {};
+                }
+                else if (!wasAutoMorphEnabled && hasAutoMorphShape_) {
+                    nextAutoMorphTime_ =
+                        std::chrono::steady_clock::now() +
+                        AUTO_MORPH_INTERVAL;
+                }
+                queueRenderSettingsForRendering(
+                    scene_.getRenderSettings()
+                );
+            }
+            else if (
+                auto* removeObject =
+                    std::get_if<RemoveSceneObjectCommand>(&*command)
+            ) {
+                const bool wasActive =
+                    activeSceneObjectId_ == removeObject->objectId;
+
+                if (scene_.removeObject(removeObject->objectId) && wasActive) {
+                    const std::vector<SceneObjectId> objectIds =
+                        scene_.getObjectIds();
+
+                    if (objectIds.empty()) {
+                        activeSceneObjectId_.reset();
+                    }
+                    else {
+                        activeSceneObjectId_ = objectIds.back();
+                    }
+
+                    activeObjectChanged = true;
+                }
+            }
+        }
+
+        if (activeObjectChanged) {
+            queueActiveObjectForRendering();
+        }
+        else if (activeTransformChanged) {
+            queueActiveObjectTransformForRendering();
+        }
+    }
+
+    void Application::queueActiveObjectTransformForRendering() {
+        if (!activeSceneObjectId_) {
+            return;
+        }
+
+        const SceneObject* object =
+            scene_.findObject(*activeSceneObjectId_);
+        if (object == nullptr) {
+            return;
+        }
+
+        RenderCommand transformCommand;
+        transformCommand.type = RenderCommandType::SetModelMatrix;
+        transformCommand.data = object->getTransform().getModelMatrix();
+        vk_.getRenderQueue().enqueue(std::move(transformCommand));
+    }
+
+    void Application::queueActiveObjectForRendering() {
+        PointCloud pointCloud;
+        glm::mat4 modelMatrix(1.0f);
+
+        if (activeSceneObjectId_) {
+            const SceneObject* object =
+                scene_.findObject(*activeSceneObjectId_);
+
+            if (object != nullptr) {
+                pointCloud = object->getPointCloud();
+                modelMatrix = object->getTransform().getModelMatrix();
+            }
+            else {
+                activeSceneObjectId_.reset();
+            }
+        }
+
+        RenderCommand pointCloudCommand;
+        pointCloudCommand.type = RenderCommandType::UpdatePointCloud;
+        pointCloudCommand.data = std::move(pointCloud);
+        vk_.getRenderQueue().enqueue(std::move(pointCloudCommand));
+
+        RenderCommand transformCommand;
+        transformCommand.type = RenderCommandType::SetModelMatrix;
+        transformCommand.data = modelMatrix;
+        vk_.getRenderQueue().enqueue(std::move(transformCommand));
+
+        float animationSpeed = 1.0f;
+        if (activeSceneObjectId_) {
+            const SceneObject* object =
+                scene_.findObject(*activeSceneObjectId_);
+            if (object != nullptr) {
+                animationSpeed = object->getAnimationSpeed();
+            }
+        }
+
+        RenderCommand animationCommand;
+        animationCommand.type = RenderCommandType::SetAnimationSpeed;
+        animationCommand.data = animationSpeed;
+        vk_.getRenderQueue().enqueue(std::move(animationCommand));
+    }
+
+    void Application::queueRenderSettingsForRendering(
+        const SceneRenderSettings& settings
+    ) {
+        const auto enqueueFloat = [this](RenderCommandType type, float value) {
+            RenderCommand command;
+            command.type = type;
+            command.data = value;
+            vk_.getRenderQueue().enqueue(std::move(command));
+        };
+
+        const auto enqueueBool = [this](RenderCommandType type, bool value) {
+            RenderCommand command;
+            command.type = type;
+            command.data = value;
+            vk_.getRenderQueue().enqueue(std::move(command));
+        };
+
+        enqueueFloat(
+            RenderCommandType::SetMorphDuration,
+            settings.morphDurationSeconds
+        );
+        enqueueFloat(
+            RenderCommandType::SetVibrationAmplitude,
+            settings.vibrationAmplitude
+        );
+        enqueueFloat(
+            RenderCommandType::SetVibrationSpeed,
+            settings.vibrationSpeed
+        );
+        enqueueBool(
+            RenderCommandType::SetVibrationEnabled,
+            settings.vibrationEnabled
+        );
+        enqueueBool(
+            RenderCommandType::SetMorphingEnabled,
+            settings.morphingEnabled
+        );
+        enqueueBool(
+            RenderCommandType::SetGroundReflectionEnabled,
+            settings.groundReflectionEnabled
+        );
+    }
+
+    void Application::updateObjectDrag(
+        GLFWwindow* window,
+        bool inputCaptured
+    ) {
+        if (
+            inputCaptured ||
+            !activeSceneObjectId_ ||
+            glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) != GLFW_PRESS
+        ) {
+            objectDragging_ = false;
+            return;
+        }
+
+        double mouseX = 0.0;
+        double mouseY = 0.0;
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+        const glm::vec2 currentPosition(
+            static_cast<float>(mouseX),
+            static_cast<float>(mouseY)
+        );
+
+        if (!objectDragging_) {
+            objectDragging_ = true;
+            lastObjectDragPosition_ = currentPosition;
+            return;
+        }
+
+        const glm::vec2 delta = currentPosition - lastObjectDragPosition_;
+        lastObjectDragPosition_ = currentPosition;
+
+        if (glm::length(delta) < 0.01f) {
+            return;
+        }
+
+        const SceneObject* object =
+            scene_.findObject(*activeSceneObjectId_);
+        if (object == nullptr) {
+            objectDragging_ = false;
+            return;
+        }
+
+        Transform transform = object->getTransform();
+        glm::vec3 rotation = transform.getRotation();
+        constexpr float degreesPerPixel = 0.25f;
+        rotation.x = std::remainder(
+            rotation.x + delta.y * degreesPerPixel,
+            360.0f
+        );
+        rotation.y = std::remainder(
+            rotation.y + delta.x * degreesPerPixel,
+            360.0f
+        );
+        transform.setRotation(rotation);
+
+        sceneCommandQueue_.enqueue(
+            SetSceneObjectTransformCommand{
+                *activeSceneObjectId_,
+                transform
+            }
+        );
+    }
+
     void Application::run() {
         try {
-            vk_.init();
-
-            const std::vector<std::string> shapes = {
-                "shape/cone.json",
-                "shape/cube.json",
-                "shape/double.json",
-                "shape/helix.json",
-                "shape/mobius.json",
-                "shape/pyramid.json",
-                "shape/sphere.json",
-                "shape/superquadric.json",
-                "shape/trefoil_knot.json"
-            };
-
-            std::random_device rd;
-            std::mt19937 rng(rd());
-            std::uniform_int_distribution<int> holdDistribution(3, 6);
+            vk_.init([this](GLFWwindow* window) {
+                controller_.init(window);
+            });
+            queueRenderSettingsForRendering(scene_.getRenderSettings());
 
             auto queueShape = [this](const std::string& filename) {
 
@@ -266,38 +556,20 @@ namespace chionia {
                     << renderCloud.getPointCount()
                     << '\n';
 
-                RenderCommand cmd;
-                cmd.type = RenderCommandType::UpdatePointCloud;
-                cmd.data = std::move(renderCloud);
-
-                vk_.getRenderQueue().enqueue(std::move(cmd));
+                sceneCommandQueue_.enqueue(
+                    UpsertPointCloudCommand{
+                        filename,
+                        std::move(renderCloud)
+                    }
+                );
             };
 
             terminal_.setLoadCallback(
-                [this, &queueShape, &shapes](
+                [this, &queueShape](
                     const std::string& filename
                 ) {
                     try {
                         queueShape(filename);
-
-                        int matchedIndex = -1;
-
-                        for (
-                            std::size_t i = 0;
-                            i < shapes.size();
-                            ++i
-                        ) {
-                            const std::string expected =
-                                "data/objects/" + shapes[i];
-
-                            if (filename == expected) {
-                                matchedIndex = static_cast<int>(i);
-                                break;
-                            }
-                        }
-
-                        manualShapeIndex_.store(matchedIndex);
-                        manualLoadVersion_.fetch_add(1);
                     }
                     catch (const std::exception& e) {
                         std::cerr
@@ -312,156 +584,80 @@ namespace chionia {
 
             terminal_.start();
 
-            std::vector<int> shapeOrder(shapes.size());
-
-            std::iota(
-                shapeOrder.begin(),
-                shapeOrder.end(),
-                0
-            );
-
-            std::shuffle(
-                shapeOrder.begin(),
-                shapeOrder.end(),
-                rng
-            );
-
-            std::size_t nextShapePosition = 0;
-            int previousShapeIndex = -1;
-
-            const int initialShapeIndex =
-                shapeOrder[nextShapePosition++];
-
             queueShape(
-                "data/objects/" + shapes[initialShapeIndex]
+                "data/objects/shape/cube.json"
             );
 
-            previousShapeIndex = initialShapeIndex;
-
-            auto nextShapeTime =
-                std::chrono::steady_clock::now()
-                + std::chrono::seconds(holdDistribution(rng))
-                + std::chrono::seconds(2);
-
-            unsigned int observedManualVersion =
-                manualLoadVersion_.load();
-
-            bool controllerInitialized = false;
+            auto previousFrameTime = std::chrono::steady_clock::now();
 
             while (
                 !terminal_.shouldExit() &&
                 !vk_.getWindow().shouldClose()
             ) {
+                const auto frameStart = std::chrono::steady_clock::now();
                 glfwPollEvents();
 
-                if (!controllerInitialized) {
-                    controller_.init(
-                        vk_.getWindow().getGLFWwindow()
+                vk_.beginEditorFrame();
+                const float deltaTime = std::clamp(
+                    std::chrono::duration<float>(frameStart - previousFrameTime).count(),
+                    0.0f,
+                    0.1f
+                );
+                previousFrameTime = frameStart;
+
+                const ImGuiIO& io = ImGui::GetIO();
+                if (!io.WantCaptureMouse && !io.WantCaptureKeyboard) {
+                    controller_.update(
+                        vk_.getWindow().getGLFWwindow(),
+                        deltaTime
                     );
-
-                    controllerInitialized = true;
                 }
-
-                controller_.update(
+                updateObjectDrag(
                     vk_.getWindow().getGLFWwindow(),
-                    0.016f
+                    io.WantCaptureMouse || io.WantCaptureKeyboard
                 );
 
-                const auto now =
-                    std::chrono::steady_clock::now();
+                editorPanel_.draw(
+                    activeSceneObjectId_,
+                    queueShape,
+                    camera_
+                );
 
-                const unsigned int currentManualVersion =
-                    manualLoadVersion_.load();
+                processSceneCommands();
 
                 if (
-                    currentManualVersion !=
-                    observedManualVersion
+                    autoMorphEnabled_ &&
+                    scene_.getRenderSettings().morphingEnabled &&
+                    hasAutoMorphShape_ &&
+                    std::chrono::steady_clock::now() >= nextAutoMorphTime_
                 ) {
-                    observedManualVersion =
-                        currentManualVersion;
-
-                    const int manualIndex =
-                        manualShapeIndex_.load();
-
-                    if (manualIndex >= 0) {
-                        previousShapeIndex = manualIndex;
-                    }
-
-                    nextShapeTime =
-                        now
-                        + std::chrono::seconds(holdDistribution(rng))
-                        + std::chrono::seconds(2);
-
-                    std::cout
-                        << "[Auto Cycle] Manual load detected. "
-                        << "Automatic timer reset.\n";
-                }
-                else if (now >= nextShapeTime) {
-
-                    if (
-                        nextShapePosition >= shapeOrder.size()
-                    ) {
-                        std::shuffle(
-                            shapeOrder.begin(),
-                            shapeOrder.end(),
-                            rng
-                        );
-
-                        nextShapePosition = 0;
-                    }
-
-                    int nextIndex =
-                        shapeOrder[nextShapePosition++];
-
-                    if (
-                        nextIndex == previousShapeIndex &&
-                        shapeOrder.size() > 1
-                    ) {
-                        if (
-                            nextShapePosition >= shapeOrder.size()
-                        ) {
-                            std::shuffle(
-                                shapeOrder.begin(),
-                                shapeOrder.end(),
-                                rng
-                            );
-
-                            nextShapePosition = 0;
-                        }
-
-                        nextIndex =
-                            shapeOrder[nextShapePosition++];
-                    }
-
+                    autoMorphShapeIndex_ =
+                        (autoMorphShapeIndex_ + 1) % AUTO_MORPH_SHAPES.size();
                     try {
                         queueShape(
-                            "data/objects/" + shapes[nextIndex]
-                        );
-
-                        previousShapeIndex = nextIndex;
-
-                        nextShapeTime =
-                            now
-                            + std::chrono::seconds(
-                                holdDistribution(rng)
+                            std::string(
+                                AUTO_MORPH_SHAPES[autoMorphShapeIndex_]
                             )
-                            + std::chrono::seconds(2);
+                        );
+                        nextAutoMorphTime_ =
+                            std::chrono::steady_clock::now() +
+                            AUTO_MORPH_INTERVAL;
                     }
                     catch (const std::exception& e) {
                         std::cerr
-                            << "[Auto Cycle] Failed to load shape: "
+                            << "[Auto Morph] Failed to load shape: "
                             << e.what()
                             << '\n';
-
-                        nextShapeTime =
-                            now + std::chrono::seconds(3);
+                        nextAutoMorphTime_ =
+                            std::chrono::steady_clock::now() +
+                            std::chrono::seconds(1);
                     }
                 }
 
                 vk_.drawFrame(camera_);
 
-                std::this_thread::sleep_for(
-                    std::chrono::milliseconds(16)
+                std::this_thread::sleep_until(
+                    frameStart + std::chrono::microseconds(16667)
                 );
             }
 

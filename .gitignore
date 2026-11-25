@@ -1,5 +1,6 @@
 #build directories
 cmake-build-debug/
+cmake-build-codex/
 build/
 
 #CMake-generated

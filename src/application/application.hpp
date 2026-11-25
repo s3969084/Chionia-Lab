@@ -5,8 +5,14 @@
 #include "ui/terminal_window.hpp"
 #include "scene/camera_controller.hpp"
 #include "scene/camera.hpp"
+#include "scene/scene.hpp"
+#include "core/commands/scene_command_queue.hpp"
+#include "editor/editor_panel.hpp"
 
-#include <atomic>
+#include <glm/glm.hpp>
+#include <chrono>
+#include <cstddef>
+#include <optional>
 
 namespace chionia {
 
@@ -24,9 +30,24 @@ namespace chionia {
         Camera camera_;
         CameraController controller_{camera_};
 
-        // Notifies the main thread when a manual shape is loaded.
-        std::atomic<unsigned int> manualLoadVersion_{0};
-        std::atomic<int> manualShapeIndex_{-1};
+        Scene scene_;
+        SceneCommandQueue sceneCommandQueue_;
+        EditorPanel editorPanel_{scene_, sceneCommandQueue_};
+        std::optional<SceneObjectId> activeSceneObjectId_;
+        bool objectDragging_ = false;
+        glm::vec2 lastObjectDragPosition_{-1.0f};
+        bool autoMorphEnabled_ = false;
+        bool hasAutoMorphShape_ = false;
+        std::size_t autoMorphShapeIndex_ = 0;
+        std::chrono::steady_clock::time_point nextAutoMorphTime_{};
+
+        void processSceneCommands();
+        void updateObjectDrag(GLFWwindow* window, bool inputCaptured);
+        void queueActiveObjectForRendering();
+        void queueActiveObjectTransformForRendering();
+        void queueRenderSettingsForRendering(
+            const SceneRenderSettings& settings
+        );
     };
 
 }

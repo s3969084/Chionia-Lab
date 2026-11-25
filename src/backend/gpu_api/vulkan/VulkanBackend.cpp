@@ -1,6 +1,8 @@
 
 #include "VulkanBackend.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <chrono>
 #include <stdexcept>
@@ -12,6 +14,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "graphics/conversion/point_vertex_converter.hpp"
+#include "scene/ground_plane.hpp"
 
 namespace chionia {
 
@@ -20,6 +23,12 @@ namespace chionia {
 // ------------------------------------------------------------
 
 void VulkanBackend::init() {
+    init({});
+}
+
+void VulkanBackend::init(
+    const std::function<void(GLFWwindow*)>& beforeOverlayInitialization
+) {
 
     std::cout << "[Init] Starting Vulkan initialization...\n";
 
@@ -30,7 +39,7 @@ void VulkanBackend::init() {
     morphActive_ = false;
     morphProgress_ = 1.0f;
 
-    instance_.create("Chionia Engine", true);
+    instance_.create("Chionia Lab", true);
     debug_.setup(instance_.get());
 
     surface_.create(
@@ -138,6 +147,21 @@ void VulkanBackend::init() {
         swapchain_.getImageCount()
     );
 
+    if (beforeOverlayInitialization) {
+        beforeOverlayInitialization(window_.getGLFWwindow());
+    }
+
+    imguiRenderer_.initialize(
+        window_.getGLFWwindow(),
+        instance_.get(),
+        physicalDevice_.get(),
+        logicalDevice_.get(),
+        logicalDevice_.getGraphicsQueueFamily(),
+        logicalDevice_.getGraphicsQueue(),
+        renderPass_.get(),
+        swapchain_.getImageCount()
+    );
+
     commandBuffers_.allocate(
         logicalDevice_.get(),
         commandPool_.get(),
@@ -171,6 +195,11 @@ void VulkanBackend::init() {
         swapchain_.getImageCount()
     );
 
+    imagesInFlight_.assign(
+        swapchain_.getImageCount(),
+        VK_NULL_HANDLE
+    );
+
     std::cout << "[Init] Vulkan initialization complete.\n";
 }
 
@@ -180,8 +209,7 @@ void VulkanBackend::init() {
 // ------------------------------------------------------------
 
 void VulkanBackend::drawFrame(const Camera& camera) {
-
-    glfwPollEvents();
+    imguiRenderer_.finalizeFrame();
 
     processRenderQueue();
 
@@ -218,6 +246,31 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         );
     }
 
+    if (imageIndex_ >= imagesInFlight_.size()) {
+        throw std::runtime_error(
+            "Acquired swapchain image has no in-flight fence entry."
+        );
+    }
+
+    if (imagesInFlight_[imageIndex_] != VK_NULL_HANDLE) {
+        const VkResult imageWaitResult = vkWaitForFences(
+            logicalDevice_.get(),
+            1,
+            &imagesInFlight_[imageIndex_],
+            VK_TRUE,
+            UINT64_MAX
+        );
+
+        if (imageWaitResult != VK_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to wait for the acquired swapchain image."
+            );
+        }
+    }
+
+    imagesInFlight_[imageIndex_] =
+        syncObjects_.getInFlightFence(currentFrame_);
+
     handleVertexUpdate();
     handlePointCloudUpdate();
 
@@ -225,6 +278,8 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         imageIndex_,
         camera
     );
+
+    recordFrameForImage(imageIndex_);
 
     syncObjects_.resetFence(
         logicalDevice_.get(),
@@ -258,6 +313,35 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         (currentFrame_ + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
+void VulkanBackend::beginEditorFrame() {
+    imguiRenderer_.beginFrame();
+}
+
+void VulkanBackend::recordFrameForImage(uint32_t imageIndex) {
+    const std::size_t residentPointCount =
+        pointCloudRenderer_.getResidentPointCount();
+
+    const bool hasParticleData =
+        pointCloudRenderer_.getBuffer() != VK_NULL_HANDLE &&
+        residentPointCount > 0;
+
+    commandBuffers_.recordForImage(
+        imageIndex,
+        renderPass_.get(),
+        framebuffers_.getAll(),
+        swapchain_.getExtent(),
+        renderer_.getPipeline(),
+        renderer_.getPipelineLayout(),
+        pointCloudRenderer_.getBuffer(),
+        static_cast<uint32_t>(residentPointCount),
+        uniformBuffer_.getDescriptorSets(),
+        !hasParticleData,
+        [this](VkCommandBuffer commandBuffer) {
+            imguiRenderer_.recordDrawData(commandBuffer);
+        }
+    );
+}
+
 
 // ------------------------------------------------------------
 // RENDER QUEUE
@@ -288,6 +372,42 @@ void VulkanBackend::processRenderQueue() {
 
                 break;
             }
+
+            case RenderCommandType::SetModelMatrix:
+                sceneModelMatrix_ = std::get<glm::mat4>(cmd.data);
+                break;
+
+            case RenderCommandType::SetAnimationSpeed:
+                animationSpeed_ = std::get<float>(cmd.data);
+                break;
+
+            case RenderCommandType::SetMorphDuration:
+                morphDurationSeconds_ = std::get<float>(cmd.data);
+                break;
+
+            case RenderCommandType::SetVibrationAmplitude:
+                vibrationAmplitude_ = std::get<float>(cmd.data);
+                break;
+
+            case RenderCommandType::SetVibrationSpeed:
+                vibrationSpeed_ = std::get<float>(cmd.data);
+                break;
+
+            case RenderCommandType::SetVibrationEnabled:
+                vibrationEnabled_ = std::get<bool>(cmd.data);
+                break;
+
+            case RenderCommandType::SetMorphingEnabled:
+                morphingEnabled_ = std::get<bool>(cmd.data);
+                if (!morphingEnabled_ && morphActive_) {
+                    morphActive_ = false;
+                    morphProgress_ = 1.0f;
+                }
+                break;
+
+            case RenderCommandType::SetGroundReflectionEnabled:
+                groundReflectionEnabled_ = std::get<bool>(cmd.data);
+                break;
 
             case RenderCommandType::SetPointSize:
             case RenderCommandType::ReloadPipeline:
@@ -328,6 +448,7 @@ void VulkanBackend::handleVertexUpdate() {
     }
 
     const bool canMorph =
+        morphingEnabled_ &&
         !activeVertices.empty() &&
         activeVertices.size() == requestedVertices.size();
 
@@ -461,10 +582,10 @@ void VulkanBackend::handlePointCloudUpdate() {
 
     if (
         pointCount >
-        std::numeric_limits<uint32_t>::max()
+        std::numeric_limits<uint32_t>::max() / 2U
     ) {
         throw std::overflow_error(
-            "Point cloud exceeds Vulkan draw limits."
+            "Point cloud and reflection exceed Vulkan draw limits."
         );
     }
 
@@ -474,6 +595,7 @@ void VulkanBackend::handlePointCloudUpdate() {
         );
 
     const bool canMorph =
+        morphingEnabled_ &&
         !activeVertices.empty() &&
         activeVertices.size() == requestedVertices.size();
 
@@ -533,12 +655,26 @@ void VulkanBackend::handlePointCloudUpdate() {
         newVertices.push_back(vertex);
     }
 
+    std::vector<Vertex> renderVertices;
+    renderVertices.reserve(newVertices.size() * 2U);
+    renderVertices.insert(
+        renderVertices.end(),
+        newVertices.begin(),
+        newVertices.end()
+    );
+
+    for (const Vertex& vertex : newVertices) {
+        Vertex reflectedVertex = vertex;
+        reflectedVertex.id |= 0x80000000U;
+        renderVertices.push_back(reflectedVertex);
+    }
+
     syncObjects_.waitAllFrames(
         logicalDevice_.get()
     );
 
     pointCloudRenderer_.synchronizeVertices(
-        newVertices
+        renderVertices
     );
 
     activeVertices = std::move(newVertices);
@@ -554,7 +690,7 @@ void VulkanBackend::handlePointCloudUpdate() {
         renderer_.getPipeline(),
         renderer_.getPipelineLayout(),
         pointCloudRenderer_.getBuffer(),
-        static_cast<uint32_t>(activeVertices.size()),
+        static_cast<uint32_t>(renderVertices.size()),
         uniformBuffer_.getDescriptorSets(),
         !hasPointData
     );
@@ -700,18 +836,9 @@ void VulkanBackend::updateUniforms(
             now - animationStartTime_
         ).count();
 
-    // Gentle continuous rotation around the vertical Y axis.
-    constexpr float rotationSpeed =
-        glm::radians(12.0f);
+    const float animationTime = elapsedTime * animationSpeed_;
 
-    const float rotationAngle =
-        elapsedTime * rotationSpeed;
-
-    ubo.model = glm::rotate(
-        glm::mat4(1.0f),
-        rotationAngle,
-        glm::vec3(0.0f, 1.0f, 0.0f)
-    );
+    ubo.model = sceneModelMatrix_;
 
     ubo.view = camera.getViewMatrix();
 
@@ -722,7 +849,7 @@ void VulkanBackend::updateUniforms(
     );
 
     ubo.animation = glm::vec4(
-        elapsedTime,
+        animationTime,
         vibrationAmplitude_,
         vibrationSpeed_,
         vibrationEnabled_ ? 1.0f : 0.0f
@@ -755,6 +882,40 @@ void VulkanBackend::updateUniforms(
         morphProgress_,
         1.0f,
         0.0f,
+        0.0f
+    );
+
+    float lowestWorldY = std::numeric_limits<float>::infinity();
+    const float smoothMorphProgress =
+        morphProgress_ * morphProgress_ *
+        (3.0f - 2.0f * morphProgress_);
+
+    for (const Vertex& vertex : activeVertices) {
+        const glm::vec3 localPosition = glm::mix(
+            vertex.position,
+            vertex.targetPosition,
+            smoothMorphProgress
+        );
+        const glm::vec4 worldPosition =
+            sceneModelMatrix_ * glm::vec4(localPosition, 1.0f);
+        lowestWorldY = std::min(lowestWorldY, worldPosition.y);
+    }
+
+    float objectGroundClearance = 0.0f;
+    if (std::isfinite(lowestWorldY)) {
+        const float vibrationMargin = vibrationEnabled_
+            ? vibrationAmplitude_
+            : 0.0f;
+        objectGroundClearance = std::max(
+            0.0f,
+            lowestWorldY - SCENE_GROUND_HEIGHT - vibrationMargin
+        );
+    }
+
+    ubo.ground = glm::vec4(
+        SCENE_GROUND_HEIGHT,
+        groundReflectionEnabled_ ? 1.0f : 0.0f,
+        objectGroundClearance,
         0.0f
     );
 
@@ -801,6 +962,8 @@ void VulkanBackend::recreateSwapchain() {
             "Failed to wait for Vulkan device to become idle!"
         );
     }
+
+    imguiRenderer_.releaseVulkanBackend();
 
     syncObjects_.destroy(
         logicalDevice_.get()
@@ -873,6 +1036,11 @@ void VulkanBackend::recreateSwapchain() {
         renderPass_.get(),
         shaderPath_Vert,
         shaderPath_Frag
+    );
+
+    imguiRenderer_.initializeVulkanBackend(
+        renderPass_.get(),
+        swapchain_.getImageCount()
     );
 
     framebuffers_.create(
@@ -954,6 +1122,11 @@ void VulkanBackend::recreateSwapchain() {
         swapchain_.getImageCount()
     );
 
+    imagesInFlight_.assign(
+        swapchain_.getImageCount(),
+        VK_NULL_HANDLE
+    );
+
     currentFrame_ = 0;
     imageIndex_ = 0;
 
@@ -983,6 +1156,9 @@ void VulkanBackend::cleanup() {
     vkDeviceWaitIdle(
         logicalDevice_.get()
     );
+
+    imguiRenderer_.shutdown();
+    imagesInFlight_.clear();
 
     if (descriptorPool_ != VK_NULL_HANDLE) {
 

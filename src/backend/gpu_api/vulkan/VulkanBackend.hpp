@@ -18,6 +18,7 @@
 #include "vulkan_command_buffers.hpp"
 #include "vulkan_sync_objects.hpp"
 #include "vulkan_renderer.hpp"
+#include "vulkan_imgui_renderer.hpp"
 #include "vulkan_point_cloud_renderer.hpp"
 #include "vulkan_uniform_buffer.hpp"
 
@@ -28,6 +29,7 @@
 // --- Standard Library ---
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -47,10 +49,12 @@ namespace chionia {
 
         // --- Lifecycle ---
         void init() override;
+        void init(const std::function<void(GLFWwindow*)>& beforeOverlayInitialization);
         void cleanup() override;
 
         // --- Main Loop ---
         void drawFrame(const Camera& camera) override;
+        void beginEditorFrame();
 
         bool shouldClose() const override {
             return window_.shouldClose();
@@ -108,6 +112,7 @@ namespace chionia {
 
         // --- Rendering ---
         VulkanRenderer renderer_;
+        VulkanImGuiRenderer imguiRenderer_;
         VulkanPointCloudRenderer pointCloudRenderer_;
 
         // --- Uniform Buffer ---
@@ -125,6 +130,9 @@ namespace chionia {
 
         uint32_t imageIndex_ = 0;
         uint32_t currentFrame_ = 0;
+        std::vector<VkFence> imagesInFlight_;
+        glm::mat4 sceneModelMatrix_{1.0f};
+        float animationSpeed_ = 1.0f;
 
         // --- Active Point Data ---
         std::vector<Vertex> activeVertices;
@@ -152,13 +160,16 @@ namespace chionia {
         void handlePointCloudUpdate();
 
         void processRenderQueue();
+        void recordFrameForImage(uint32_t imageIndex);
 
         // --- Point Vibration Controls ---
         std::chrono::steady_clock::time_point animationStartTime_;
 
         bool vibrationEnabled_ = false;
+        bool groundReflectionEnabled_ = true;
         float vibrationAmplitude_ = 0.03f;
         float vibrationSpeed_ = 8.0f;
+        bool morphingEnabled_ = true;
 
         // --- Shape Morph Controls ---
         std::chrono::steady_clock::time_point morphStartTime_;

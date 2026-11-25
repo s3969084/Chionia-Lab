@@ -13,8 +13,8 @@ namespace chionia {
 
     CameraController::CameraController(Camera& camera)
         : camera_(camera),
-          orbitRadius_(2.5f),
-          targetOrbitRadius_(2.5f),
+          orbitRadius_(2.4f),
+          targetOrbitRadius_(2.4f),
           horizontalAngle_(glm::radians(180.0f)),
           verticalAngle_(0.0f),
           orbitTarget_(glm::vec3(0.0f)),

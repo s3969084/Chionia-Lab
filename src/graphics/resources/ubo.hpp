@@ -21,6 +21,12 @@ namespace chionia {
         // y = morph enabled
         // z/w = reserved
         glm::vec4 morph;
+
+        // x = ground plane height used by the particle reflection
+        // y = reflection enabled
+        // z = object's lowest-point clearance above the ground
+        // w = reserved
+        glm::vec4 ground;
     };
 
     static_assert(
@@ -29,7 +35,7 @@ namespace chionia {
     );
 
     static_assert(
-        sizeof(UniformBufferObject) == 224,
+        sizeof(UniformBufferObject) == 240,
         "UniformBufferObject size does not match GLSL layout"
     );
 

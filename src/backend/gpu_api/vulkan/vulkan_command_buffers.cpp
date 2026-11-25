@@ -87,6 +87,50 @@ namespace chionia {
             );
         }
 
+        for (
+            size_t i = 0;
+            i < commandBuffers_.size();
+            ++i
+        ) {
+            recordForImage(
+                static_cast<uint32_t>(i),
+                renderPass,
+                framebuffers,
+                extent,
+                pipeline,
+                layout,
+                vertexBuffer,
+                vertexCount,
+                descriptorSets,
+                skipDrawing,
+                {}
+            );
+        }
+    }
+
+    void VulkanCommandBuffers::recordForImage(
+        uint32_t imageIndex,
+        VkRenderPass renderPass,
+        const std::vector<VkFramebuffer>& framebuffers,
+        VkExtent2D extent,
+        VkPipeline pipeline,
+        VkPipelineLayout layout,
+        VkBuffer vertexBuffer,
+        uint32_t vertexCount,
+        const std::vector<VkDescriptorSet>& descriptorSets,
+        bool skipDrawing,
+        const std::function<void(VkCommandBuffer)>& overlayRecorder
+    ) {
+        if (
+            imageIndex >= commandBuffers_.size() ||
+            framebuffers.size() != commandBuffers_.size() ||
+            descriptorSets.size() != commandBuffers_.size()
+        ) {
+            throw std::invalid_argument(
+                "Image, framebuffer, descriptor set and command buffer counts must match."
+            );
+        }
+
         const bool drawParticles =
             !skipDrawing &&
             pipeline != VK_NULL_HANDLE &&
@@ -94,122 +138,84 @@ namespace chionia {
             vertexBuffer != VK_NULL_HANDLE &&
             vertexCount > 0;
 
-        for (
-            size_t i = 0;
-            i < commandBuffers_.size();
-            ++i
-        ) {
-            VkCommandBuffer commandBuffer =
-                commandBuffers_[i];
+        VkCommandBuffer commandBuffer = commandBuffers_[imageIndex];
 
-            // Explicitly reset before recording.
-            // The caller must ensure this command buffer is not pending.
-            if (
-                vkResetCommandBuffer(
-                    commandBuffer,
-                    0
-                ) != VK_SUCCESS
-            ) {
-                throw std::runtime_error(
-                    "Failed to reset Vulkan command buffer."
-                );
-            }
+        // The caller must wait for this swapchain image's previous fence first.
+        if (vkResetCommandBuffer(commandBuffer, 0) != VK_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to reset Vulkan command buffer."
+            );
+        }
 
-            VkCommandBufferBeginInfo beginInfo{};
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-            beginInfo.sType =
-                VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to begin recording Vulkan command buffer."
+            );
+        }
 
-            beginInfo.flags =
-                VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+        std::array<VkClearValue, 1> clearValues{};
+        clearValues[0].color = {{0.002f, 0.006f, 0.018f, 1.0f}};
 
-            if (
-                vkBeginCommandBuffer(
-                    commandBuffer,
-                    &beginInfo
-                ) != VK_SUCCESS
-            ) {
-                throw std::runtime_error(
-                    "Failed to begin recording Vulkan command buffer."
-                );
-            }
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.framebuffer = framebuffers[imageIndex];
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = extent;
+        renderPassInfo.clearValueCount =
+            static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
 
-            std::array<VkClearValue, 1> clearValues{};
+        vkCmdBeginRenderPass(
+            commandBuffer,
+            &renderPassInfo,
+            VK_SUBPASS_CONTENTS_INLINE
+        );
 
-            clearValues[0].color = {
-                {0.0f, 0.0f, 0.0f, 1.0f}
-            };
-
-            VkRenderPassBeginInfo renderPassInfo{};
-
-            renderPassInfo.sType =
-                VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-
-            renderPassInfo.renderPass = renderPass;
-            renderPassInfo.framebuffer = framebuffers[i];
-
-            renderPassInfo.renderArea.offset = {0, 0};
-            renderPassInfo.renderArea.extent = extent;
-
-            renderPassInfo.clearValueCount =
-                static_cast<uint32_t>(clearValues.size());
-
-            renderPassInfo.pClearValues =
-                clearValues.data();
-
-            vkCmdBeginRenderPass(
+        if (drawParticles) {
+            vkCmdBindPipeline(
                 commandBuffer,
-                &renderPassInfo,
-                VK_SUBPASS_CONTENTS_INLINE
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                pipeline
             );
 
-            if (drawParticles) {
+            vkCmdBindDescriptorSets(
+                commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                layout,
+                0,
+                1,
+                &descriptorSets[imageIndex],
+                0,
+                nullptr
+            );
 
-                vkCmdBindPipeline(
-                    commandBuffer,
-                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    pipeline
-                );
+            const VkDeviceSize offset = 0;
+            vkCmdBindVertexBuffers(
+                commandBuffer,
+                0,
+                1,
+                &vertexBuffer,
+                &offset
+            );
 
-                vkCmdBindDescriptorSets(
-                    commandBuffer,
-                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    layout,
-                    0,
-                    1,
-                    &descriptorSets[i],
-                    0,
-                    nullptr
-                );
+            vkCmdDraw(commandBuffer, vertexCount, 1, 0, 0);
+        }
 
-                VkDeviceSize offset = 0;
+        if (overlayRecorder) {
+            overlayRecorder(commandBuffer);
+        }
 
-                vkCmdBindVertexBuffers(
-                    commandBuffer,
-                    0,
-                    1,
-                    &vertexBuffer,
-                    &offset
-                );
+        vkCmdEndRenderPass(commandBuffer);
 
-                vkCmdDraw(
-                    commandBuffer,
-                    vertexCount,
-                    1,
-                    0,
-                    0
-                );
-            }
-
-            vkCmdEndRenderPass(commandBuffer);
-
-            if (
-                vkEndCommandBuffer(commandBuffer) != VK_SUCCESS
-            ) {
-                throw std::runtime_error(
-                    "Failed to record Vulkan command buffer."
-                );
-            }
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error(
+                "Failed to record Vulkan command buffer."
+            );
         }
     }
 
