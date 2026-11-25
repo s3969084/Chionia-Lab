@@ -12,11 +12,165 @@
 #include <utility>
 #include <cstdlib>
 #include <string>
+#include <cmath>
+#include <limits>
+#include <iomanip>
 
 #include "io/json_model_loader.hpp"
 #include "scene/shapes/shape_resampler.hpp"
+#include "scene/shapes/shape_asset.hpp"
+#include "scene/shapes/shape_sampling_config.hpp"
 
 namespace chionia {
+
+    namespace {
+
+        void printSpacingDiagnostics(
+            const std::vector<glm::vec3>& positions
+        ) {
+            if (positions.size() < 2) {
+                return;
+            }
+
+            double minimumDistance =
+                std::numeric_limits<double>::max();
+
+            double maximumDistance = 0.0;
+            double totalDistance = 0.0;
+
+            std::vector<double> distances;
+            distances.reserve(positions.size() - 1);
+
+            for (std::size_t i = 1; i < positions.size(); ++i) {
+                const glm::vec3& a = positions[i - 1];
+                const glm::vec3& b = positions[i];
+
+                const double dx =
+                    static_cast<double>(b.x) - a.x;
+
+                const double dy =
+                    static_cast<double>(b.y) - a.y;
+
+                const double dz =
+                    static_cast<double>(b.z) - a.z;
+
+                const double distance =
+                    std::hypot(dx, dy, dz);
+
+                distances.push_back(distance);
+
+                minimumDistance =
+                    std::min(minimumDistance, distance);
+
+                maximumDistance =
+                    std::max(maximumDistance, distance);
+
+                totalDistance += distance;
+            }
+
+            const double averageDistance =
+                totalDistance /
+                static_cast<double>(distances.size());
+
+            double squaredDifferenceSum = 0.0;
+
+            for (const double distance : distances) {
+                const double difference =
+                    distance - averageDistance;
+
+                squaredDifferenceSum +=
+                    difference * difference;
+            }
+
+            const double variance =
+                squaredDifferenceSum /
+                static_cast<double>(distances.size());
+
+            const double standardDeviation =
+                std::sqrt(variance);
+
+            const auto oldFlags = std::cout.flags();
+            const auto oldPrecision = std::cout.precision();
+
+            std::cout
+                << std::fixed
+                << std::setprecision(8);
+
+            std::cout
+                << "[Shape Diagnostics] Consecutive spacing:"
+                << "\n  Minimum: " << minimumDistance
+                << "\n  Maximum: " << maximumDistance
+                << "\n  Average: " << averageDistance
+                << "\n  Std dev: " << standardDeviation
+                << '\n';
+
+            std::cout.flags(oldFlags);
+            std::cout.precision(oldPrecision);
+        }
+
+        ShapeSamplingConfig getSamplingConfig(
+            const std::string& filename
+        ) {
+            ShapeSamplingConfig config;
+
+            if (
+                filename.find("helix.json") != std::string::npos
+            ) {
+                config.mode = ShapeSamplingMode::Curve;
+                config.curveCount = 1;
+                config.closedCurve = false;
+            }
+            else if (
+                filename.find("double.json") != std::string::npos
+            ) {
+                config.mode = ShapeSamplingMode::Curve;
+                config.curveCount = 2;
+                config.interleavedCurves = true;
+                config.closedCurve = false;
+            }
+            else if (
+                filename.find("trefoil_knot.json") != std::string::npos
+            ) {
+                config.mode = ShapeSamplingMode::Curve;
+                config.curveCount = 1;
+                config.closedCurve = true;
+
+                // The source file contains two identical cycles.
+                // Only the first 1,000 points are needed.
+                config.sourcePointCount = 1000;
+            }
+            else if (
+                filename.find("cube.json") != std::string::npos
+            ) {
+                config.mode = ShapeSamplingMode::Volume;
+
+                // Confirmed source layout:
+                // 11 points along X, Y and Z.
+                config.uCount = 11;
+                config.vCount = 11;
+                config.wCount = 11;
+            }
+            else if (
+                filename.find("sphere.json") != std::string::npos
+            ) {
+                config.mode = ShapeSamplingMode::Surface;
+
+                // Confirmed source layout:
+                // 73 longitude samples per row.
+                // 37 latitude rows.
+                config.uCount = 73;
+                config.vCount = 37;
+
+                // Longitude wraps around the sphere.
+                // Latitude runs from north to south pole.
+                config.wrapU = true;
+                config.wrapV = false;
+            }
+
+            return config;
+        }
+
+    }
 
     Application::Application()
         : vk_(800, 600, "Chionia Engine"),
@@ -47,15 +201,38 @@ namespace chionia {
             std::mt19937 rng(rd());
             std::uniform_int_distribution<int> holdDistribution(3, 6);
 
-            // Load, resample and queue a core PointCloud.
-            // No renderer-specific Vertex objects are created here.
             auto queueShape = [this](const std::string& filename) {
 
                 PointCloud sourceCloud =
                     PointCloudLoader::loadPointCloudFromFile(filename);
 
-                const auto targetPositions =
-                    ShapeResampler::resample(sourceCloud);
+                const std::size_t sourcePointCount =
+                    sourceCloud.getPointCount();
+
+                const ShapeSamplingConfig samplingConfig =
+                    getSamplingConfig(filename);
+
+                std::vector<glm::vec3> targetPositions;
+
+                if (
+                    samplingConfig.mode == ShapeSamplingMode::Curve ||
+                    samplingConfig.mode == ShapeSamplingMode::Volume ||
+                    samplingConfig.mode == ShapeSamplingMode::Surface
+                ) {
+                    ShapeAsset asset(
+                        std::move(sourceCloud),
+                        samplingConfig
+                    );
+
+                    targetPositions =
+                        ShapeResampler::resample(asset);
+                }
+                else {
+                    // Temporary legacy path for shapes whose
+                    // topology has not yet been configured.
+                    targetPositions =
+                        ShapeResampler::resample(sourceCloud);
+                }
 
                 if (
                     targetPositions.size() !=
@@ -66,7 +243,15 @@ namespace chionia {
                     );
                 }
 
-                // Build the resampled cloud as a core resource.
+                // Consecutive spacing is meaningful for a single
+                // ordered curve, but not for a volume or surface.
+                if (
+                    samplingConfig.mode == ShapeSamplingMode::Curve &&
+                    samplingConfig.curveCount == 1
+                ) {
+                    printSpacingDiagnostics(targetPositions);
+                }
+
                 PointCloud renderCloud(filename);
 
                 for (const auto& position : targetPositions) {
@@ -76,12 +261,11 @@ namespace chionia {
                 std::cout
                     << "\n[Shape Loader] Loaded: " << filename
                     << "\n[Shape Loader] Source points: "
-                    << sourceCloud.getPointCount()
+                    << sourcePointCount
                     << "\n[Shape Loader] Resampled points: "
                     << renderCloud.getPointCount()
                     << '\n';
 
-                // Queue the core PointCloud.
                 RenderCommand cmd;
                 cmd.type = RenderCommandType::UpdatePointCloud;
                 cmd.data = std::move(renderCloud);
@@ -114,7 +298,6 @@ namespace chionia {
 
                         manualShapeIndex_.store(matchedIndex);
                         manualLoadVersion_.fetch_add(1);
-
                     }
                     catch (const std::exception& e) {
                         std::cerr
@@ -169,7 +352,6 @@ namespace chionia {
                 !terminal_.shouldExit() &&
                 !vk_.getWindow().shouldClose()
             ) {
-
                 glfwPollEvents();
 
                 if (!controllerInitialized) {
@@ -195,7 +377,6 @@ namespace chionia {
                     currentManualVersion !=
                     observedManualVersion
                 ) {
-
                     observedManualVersion =
                         currentManualVersion;
 
@@ -236,7 +417,6 @@ namespace chionia {
                         nextIndex == previousShapeIndex &&
                         shapeOrder.size() > 1
                     ) {
-
                         if (
                             nextShapePosition >= shapeOrder.size()
                         ) {
@@ -254,7 +434,6 @@ namespace chionia {
                     }
 
                     try {
-
                         queueShape(
                             "data/objects/" + shapes[nextIndex]
                         );
@@ -267,10 +446,8 @@ namespace chionia {
                                 holdDistribution(rng)
                             )
                             + std::chrono::seconds(2);
-
                     }
                     catch (const std::exception& e) {
-
                         std::cerr
                             << "[Auto Cycle] Failed to load shape: "
                             << e.what()
@@ -289,7 +466,6 @@ namespace chionia {
             }
 
             if (vk_.getWindow().shouldClose()) {
-
                 terminal_.requestExit();
 
                 std::cin.setstate(
@@ -299,10 +475,8 @@ namespace chionia {
 
             terminal_.stop();
             vk_.cleanup();
-
         }
         catch (const std::exception& e) {
-
             std::cerr
                 << "Exception: "
                 << e.what()

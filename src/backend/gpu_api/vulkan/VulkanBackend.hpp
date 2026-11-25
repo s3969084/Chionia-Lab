@@ -29,6 +29,7 @@
 #include <chrono>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -129,6 +130,9 @@ namespace chionia {
         std::vector<Vertex> activeVertices;
         std::vector<Vertex> pendingVertices;
 
+        // Pending core PointCloud update.
+        std::optional<PointCloud> pendingPointCloud_;
+
         std::mutex vertexUpdateMutex_;
         bool vertexUpdatePending_ = false;
 
@@ -145,6 +149,7 @@ namespace chionia {
         );
 
         void handleVertexUpdate();
+        void handlePointCloudUpdate();
 
         void processRenderQueue();
 

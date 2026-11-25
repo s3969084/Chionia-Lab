@@ -9,6 +9,10 @@
 #include <vector>
 #include <limits>
 
+#include <glm/gtc/matrix_transform.hpp>
+
+#include "graphics/conversion/point_vertex_converter.hpp"
+
 namespace chionia {
 
 // ------------------------------------------------------------
@@ -22,6 +26,9 @@ void VulkanBackend::init() {
     activeVertices.clear();
 
     animationStartTime_ = std::chrono::steady_clock::now();
+
+    morphActive_ = false;
+    morphProgress_ = 1.0f;
 
     instance_.create("Chionia Engine", true);
     debug_.setup(instance_.get());
@@ -67,8 +74,6 @@ void VulkanBackend::init() {
         logicalDevice_.getGraphicsQueueFamily()
     );
 
-    // Initialise the point cloud renderer.
-    // It now owns and manages the underlying Vulkan vertex buffer.
     pointCloudRenderer_.initialize(
         logicalDevice_.get(),
         physicalDevice_.getMemoryProperties(),
@@ -141,9 +146,12 @@ void VulkanBackend::init() {
         )
     );
 
+    const std::size_t residentPointCount =
+        pointCloudRenderer_.getResidentPointCount();
+
     const bool hasParticleData =
         pointCloudRenderer_.getBuffer() != VK_NULL_HANDLE &&
-        !activeVertices.empty();
+        residentPointCount > 0;
 
     commandBuffers_.record(
         renderPass_.get(),
@@ -152,7 +160,7 @@ void VulkanBackend::init() {
         renderer_.getPipeline(),
         renderer_.getPipelineLayout(),
         pointCloudRenderer_.getBuffer(),
-        static_cast<uint32_t>(activeVertices.size()),
+        static_cast<uint32_t>(residentPointCount),
         uniformBuffer_.getDescriptorSets(),
         !hasParticleData
     );
@@ -196,9 +204,7 @@ void VulkanBackend::drawFrame(const Camera& camera) {
         &imageIndex_
     );
 
-    if (
-        acquireResult == VK_ERROR_OUT_OF_DATE_KHR
-    ) {
+    if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
         recreateSwapchain();
         return;
     }
@@ -213,6 +219,7 @@ void VulkanBackend::drawFrame(const Camera& camera) {
     }
 
     handleVertexUpdate();
+    handlePointCloudUpdate();
 
     updateUniforms(
         imageIndex_,
@@ -260,7 +267,7 @@ void VulkanBackend::processRenderQueue() {
 
     while (auto cmdOpt = renderQueue_.tryDequeue()) {
 
-        const RenderCommand& cmd = *cmdOpt;
+        RenderCommand& cmd = *cmdOpt;
 
         switch (cmd.type) {
 
@@ -272,6 +279,18 @@ void VulkanBackend::processRenderQueue() {
 
                 break;
 
+            case RenderCommandType::UpdatePointCloud: {
+
+                std::lock_guard<std::mutex> lock(vertexUpdateMutex_);
+
+                pendingPointCloud_ =
+                    std::move(std::get<PointCloud>(cmd.data));
+
+                break;
+            }
+
+            case RenderCommandType::SetPointSize:
+            case RenderCommandType::ReloadPipeline:
             default:
 
                 break;
@@ -281,7 +300,7 @@ void VulkanBackend::processRenderQueue() {
 
 
 // ------------------------------------------------------------
-// POINT CLOUD / VERTEX UPDATE
+// LEGACY VERTEX UPDATE
 // ------------------------------------------------------------
 
 void VulkanBackend::handleVertexUpdate() {
@@ -308,7 +327,6 @@ void VulkanBackend::handleVertexUpdate() {
         );
     }
 
-    // Morphing by index is only valid when populations match.
     const bool canMorph =
         !activeVertices.empty() &&
         activeVertices.size() == requestedVertices.size();
@@ -369,12 +387,10 @@ void VulkanBackend::handleVertexUpdate() {
         newVertices.push_back(vertex);
     }
 
-    // Ensure no submitted frame is using the old resources.
     syncObjects_.waitAllFrames(
         logicalDevice_.get()
     );
 
-    // The point cloud renderer now owns GPU buffer updates.
     pointCloudRenderer_.synchronizeVertices(
         newVertices
     );
@@ -385,7 +401,6 @@ void VulkanBackend::handleVertexUpdate() {
         !activeVertices.empty() &&
         pointCloudRenderer_.getBuffer() != VK_NULL_HANDLE;
 
-    // Re-record because the draw count or buffer may have changed.
     commandBuffers_.record(
         renderPass_.get(),
         framebuffers_.getAll(),
@@ -418,6 +433,152 @@ void VulkanBackend::handleVertexUpdate() {
             << "[Vulkan] Point cloud updated: "
             << activeVertices.size()
             << " points.\n";
+    }
+}
+
+
+// ------------------------------------------------------------
+// CORE POINT CLOUD UPDATE
+// ------------------------------------------------------------
+
+void VulkanBackend::handlePointCloudUpdate() {
+
+    std::optional<PointCloud> requestedPointCloud;
+
+    {
+        std::lock_guard<std::mutex> lock(vertexUpdateMutex_);
+
+        if (!pendingPointCloud_) {
+            return;
+        }
+
+        requestedPointCloud = std::move(pendingPointCloud_);
+        pendingPointCloud_.reset();
+    }
+
+    const std::size_t pointCount =
+        requestedPointCloud->getPointCount();
+
+    if (
+        pointCount >
+        std::numeric_limits<uint32_t>::max()
+    ) {
+        throw std::overflow_error(
+            "Point cloud exceeds Vulkan draw limits."
+        );
+    }
+
+    std::vector<Vertex> requestedVertices =
+        PointVertexConverter::convertPointCloudToVertices(
+            *requestedPointCloud
+        );
+
+    const bool canMorph =
+        !activeVertices.empty() &&
+        activeVertices.size() == requestedVertices.size();
+
+    const auto now = std::chrono::steady_clock::now();
+
+    float currentProgress = 1.0f;
+
+    if (morphActive_) {
+
+        const float elapsed =
+            std::chrono::duration<float>(
+                now - morphStartTime_
+            ).count();
+
+        currentProgress = glm::clamp(
+            elapsed / morphDurationSeconds_,
+            0.0f,
+            1.0f
+        );
+    }
+
+    const float easedProgress =
+        currentProgress * currentProgress *
+        (3.0f - 2.0f * currentProgress);
+
+    std::vector<Vertex> newVertices;
+    newVertices.reserve(requestedVertices.size());
+
+    for (
+        std::size_t i = 0;
+        i < requestedVertices.size();
+        ++i
+    ) {
+
+        const glm::vec3 targetPosition =
+            requestedVertices[i].targetPosition;
+
+        glm::vec3 currentPosition = targetPosition;
+
+        if (canMorph) {
+
+            const Vertex& oldVertex = activeVertices[i];
+
+            currentPosition = glm::mix(
+                oldVertex.position,
+                oldVertex.targetPosition,
+                easedProgress
+            );
+        }
+
+        Vertex vertex;
+
+        vertex.id = static_cast<uint32_t>(i);
+        vertex.position = currentPosition;
+        vertex.targetPosition = targetPosition;
+
+        newVertices.push_back(vertex);
+    }
+
+    syncObjects_.waitAllFrames(
+        logicalDevice_.get()
+    );
+
+    pointCloudRenderer_.synchronizeVertices(
+        newVertices
+    );
+
+    activeVertices = std::move(newVertices);
+
+    const bool hasPointData =
+        !activeVertices.empty() &&
+        pointCloudRenderer_.getBuffer() != VK_NULL_HANDLE;
+
+    commandBuffers_.record(
+        renderPass_.get(),
+        framebuffers_.getAll(),
+        swapchain_.getExtent(),
+        renderer_.getPipeline(),
+        renderer_.getPipelineLayout(),
+        pointCloudRenderer_.getBuffer(),
+        static_cast<uint32_t>(activeVertices.size()),
+        uniformBuffer_.getDescriptorSets(),
+        !hasPointData
+    );
+
+    if (canMorph && !activeVertices.empty()) {
+
+        morphStartTime_ = now;
+        morphProgress_ = 0.0f;
+        morphActive_ = true;
+
+        std::cout
+            << "[Morph] PointCloud transition started: "
+            << activeVertices.size()
+            << " points.\n";
+    }
+    else {
+
+        morphProgress_ = 1.0f;
+        morphActive_ = false;
+
+        std::cout
+            << "[Vulkan] PointCloud synchronized: "
+            << activeVertices.size()
+            << " points resident on GPU.\n";
     }
 }
 
@@ -532,7 +693,26 @@ void VulkanBackend::updateUniforms(
 
     UniformBufferObject ubo{};
 
-    ubo.model = glm::mat4(1.0f);
+    const auto now = std::chrono::steady_clock::now();
+
+    const float elapsedTime =
+        std::chrono::duration<float>(
+            now - animationStartTime_
+        ).count();
+
+    // Gentle continuous rotation around the vertical Y axis.
+    constexpr float rotationSpeed =
+        glm::radians(12.0f);
+
+    const float rotationAngle =
+        elapsedTime * rotationSpeed;
+
+    ubo.model = glm::rotate(
+        glm::mat4(1.0f),
+        rotationAngle,
+        glm::vec3(0.0f, 1.0f, 0.0f)
+    );
+
     ubo.view = camera.getViewMatrix();
 
     ubo.projection = camera.getProjectionMatrix(
@@ -540,13 +720,6 @@ void VulkanBackend::updateUniforms(
         swapchain_.getExtent().height,
         true
     );
-
-    const auto now = std::chrono::steady_clock::now();
-
-    const float elapsedTime =
-        std::chrono::duration<float>(
-            now - animationStartTime_
-        ).count();
 
     ubo.animation = glm::vec4(
         elapsedTime,
@@ -756,9 +929,12 @@ void VulkanBackend::recreateSwapchain() {
         )
     );
 
+    const std::size_t residentPointCount =
+        pointCloudRenderer_.getResidentPointCount();
+
     const bool hasParticleData =
         pointCloudRenderer_.getBuffer() != VK_NULL_HANDLE &&
-        !activeVertices.empty();
+        residentPointCount > 0;
 
     commandBuffers_.record(
         renderPass_.get(),
@@ -767,7 +943,7 @@ void VulkanBackend::recreateSwapchain() {
         renderer_.getPipeline(),
         renderer_.getPipelineLayout(),
         pointCloudRenderer_.getBuffer(),
-        static_cast<uint32_t>(activeVertices.size()),
+        static_cast<uint32_t>(residentPointCount),
         uniformBuffer_.getDescriptorSets(),
         !hasParticleData
     );
@@ -828,7 +1004,6 @@ void VulkanBackend::cleanup() {
         commandPool_.get()
     );
 
-    // The point cloud renderer owns the GPU vertex buffer.
     pointCloudRenderer_.release();
 
     uniformBuffer_.destroy(

@@ -3,6 +3,7 @@
 
 #include "core/resources/point_cloud.hpp"
 #include "graphics/resources/point.hpp"
+#include "shape_asset.hpp"
 
 #include <glm/glm.hpp>
 
@@ -15,7 +16,12 @@ namespace chionia {
     public:
         static constexpr std::size_t PARTICLE_COUNT = 12000;
 
-        // New core PointCloud interface.
+        // Geometry-aware interface.
+        static std::vector<glm::vec3> resample(
+            const ShapeAsset& asset
+        );
+
+        // Legacy PointCloud interface.
         static std::vector<glm::vec3> resample(
             const PointCloud& pointCloud
         );
