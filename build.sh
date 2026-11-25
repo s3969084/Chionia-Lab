@@ -1,28 +1,34 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-BUILD_DIR="cmake-build-debug"
-SHADER_SRC_DIR="src/shaders"
-SHADER_OUT_DIR="$BUILD_DIR/shaders"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$repo_root"
 
-echo "Cleaning previous build..."
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR"
+: "${VCPKG_ROOT:?Set VCPKG_ROOT to your vcpkg checkout before building}"
+: "${VULKAN_SDK:?Install the Vulkan SDK and set VULKAN_SDK before building}"
 
-echo "Cleaning old shader outputs..."
-rm -rf "$SHADER_OUT_DIR"
-mkdir -p "$SHADER_OUT_DIR"
+if [[ ! -f "$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" ]]; then
+    echo "Could not find the vcpkg CMake toolchain under VCPKG_ROOT: $VCPKG_ROOT" >&2
+    exit 1
+fi
 
-echo "Compiling shaders into build folder..."
-glslc "$SHADER_SRC_DIR/point.vert" -o "$SHADER_OUT_DIR/point.vert.spv"
-glslc "$SHADER_SRC_DIR/point.frag" -o "$SHADER_OUT_DIR/point.frag.spv"
+if [[ ! -x "$VULKAN_SDK/bin/glslc" ]]; then
+    echo "Could not find executable glslc at $VULKAN_SDK/bin/glslc" >&2
+    exit 1
+fi
 
-echo "Running CMake configuration with Ninja..."
-cd "$BUILD_DIR"
-cmake -G Ninja ..
+for tool in cmake ninja; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "$tool is required and must be available on PATH" >&2
+        exit 1
+    fi
+done
 
-echo "Building the project via CMake..."
-cmake --build .
+echo "Configuring Linux Release..."
+cmake --preset linux-release
 
-echo "Build complete."
+echo "Building Chionia Lab..."
+cmake --build --preset linux-release
+
+echo "Build complete. Run build/linux-release/Chionia_Lab from its build directory."

@@ -39,8 +39,19 @@ void VulkanBackend::init(
     morphActive_ = false;
     morphProgress_ = 1.0f;
 
-    instance_.create("Chionia Lab", true);
-    debug_.setup(instance_.get());
+#ifdef CHIONIA_DEBUG
+    constexpr bool enableValidation = true;
+#else
+    constexpr bool enableValidation = false;
+#endif
+
+    instance_.create("Chionia Lab", enableValidation);
+
+#ifdef CHIONIA_DEBUG
+    if (enableValidation) {
+        debug_.setup(instance_.get());
+    }
+#endif
 
     surface_.create(
         window_.getGLFWwindow(),
