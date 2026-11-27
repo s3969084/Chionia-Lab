@@ -28,7 +28,10 @@ namespace chionia {
         TerminalWindow terminal_;
 
         Camera camera_;
+        Camera presentationCamera_;
         CameraController controller_{camera_};
+        CameraController presentationController_{presentationCamera_};
+        CameraController* activeCameraController_ = &controller_;
 
         Scene scene_;
         SceneCommandQueue sceneCommandQueue_;

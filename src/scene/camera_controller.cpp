@@ -102,6 +102,12 @@ void CameraController::setOrbitAngles(const glm::vec2& angles) {
         cinematicPhase_ = 0.0f;
     }
 
+    void CameraController::resetInputState() {
+        dragging_ = false;
+        lastMousePos_ = glm::vec2(-1.0f);
+        scrollDelta_ = 0.0f;
+    }
+
     void CameraController::update(
         GLFWwindow* window,
         float deltaTime,

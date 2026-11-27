@@ -141,6 +141,9 @@ namespace chionia {
         std::vector<Vertex> activeVertices;
         std::vector<Vertex> pendingVertices;
         std::size_t morphTargetVertexCount_ = 0;
+        glm::vec3 activeBoundsMinimum_{0.0f};
+        glm::vec3 activeBoundsMaximum_{0.0f};
+        bool activeBoundsValid_ = false;
 
         // Pending core PointCloud update.
         std::optional<PointCloud> pendingPointCloud_;
@@ -163,6 +166,7 @@ namespace chionia {
 
         void handleVertexUpdate();
         void handlePointCloudUpdate();
+        void rebuildActiveBounds(bool targetOnly = false);
 
         void processRenderQueue();
         void recordFrameForImage(uint32_t imageIndex);

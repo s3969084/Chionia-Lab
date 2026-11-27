@@ -26,6 +26,7 @@ namespace chionia {
         void setOrbitAngles(const glm::vec2& angles);
         void shiftOrbitTargetHorizontally(float screenPixels, float viewportHeight);
         void setCinematicOrbit(bool enabled);
+        void resetInputState();
 
     private:
         static void scrollCallback(GLFWwindow* window, double, double yoffset);

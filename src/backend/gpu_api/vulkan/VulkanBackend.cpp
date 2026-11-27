@@ -38,6 +38,7 @@ void VulkanBackend::init(
 
     activeVertices.clear();
     morphTargetVertexCount_ = 0;
+    activeBoundsValid_ = false;
 
     animationStartTime_ = std::chrono::steady_clock::now();
     orbitElapsedTime_ = 0.0f;
@@ -424,6 +425,7 @@ void VulkanBackend::processRenderQueue() {
                     if (morphTargetVertexCount_ < activeVertices.size()) {
                         activeVertices.resize(morphTargetVertexCount_);
                     }
+                    rebuildActiveBounds(true);
                 }
                 break;
 
@@ -579,6 +581,7 @@ void VulkanBackend::handleVertexUpdate() {
 
     activeVertices = std::move(newVertices);
     morphTargetVertexCount_ = requestedVertices.size();
+    rebuildActiveBounds();
 
     const bool hasParticleData =
         !activeVertices.empty() &&
@@ -780,6 +783,7 @@ void VulkanBackend::handlePointCloudUpdate() {
 
     activeVertices = std::move(newVertices);
     morphTargetVertexCount_ = pointCount;
+    rebuildActiveBounds();
 
     const bool hasPointData =
         !activeVertices.empty() &&
@@ -919,6 +923,38 @@ void VulkanBackend::updateVertices(
     vertexUpdatePending_ = true;
 }
 
+void VulkanBackend::rebuildActiveBounds(bool targetOnly) {
+    activeBoundsValid_ = false;
+    const std::size_t pointCount = targetOnly
+        ? std::min(morphTargetVertexCount_, activeVertices.size())
+        : activeVertices.size();
+
+    for (std::size_t index = 0; index < pointCount; ++index) {
+        const Vertex& vertex = activeVertices[index];
+        const std::size_t endpointCount = targetOnly ? 1 : 2;
+        for (std::size_t endpoint = 0; endpoint < endpointCount; ++endpoint) {
+            const glm::vec3& position = targetOnly || endpoint == 1
+                ? vertex.targetPosition
+                : vertex.position;
+            if (!activeBoundsValid_) {
+                activeBoundsMinimum_ = position;
+                activeBoundsMaximum_ = position;
+                activeBoundsValid_ = true;
+            }
+            else {
+                activeBoundsMinimum_ = glm::min(
+                    activeBoundsMinimum_,
+                    position
+                );
+                activeBoundsMaximum_ = glm::max(
+                    activeBoundsMaximum_,
+                    position
+                );
+            }
+        }
+    }
+}
+
 
 // ------------------------------------------------------------
 // UNIFORM BUFFER UPDATES
@@ -977,6 +1013,7 @@ void VulkanBackend::updateUniforms(
             if (morphTargetVertexCount_ < activeVertices.size()) {
                 activeVertices.resize(morphTargetVertexCount_);
             }
+            rebuildActiveBounds(true);
 
             std::cout
                 << "[Morph] Transition complete.\n";
@@ -992,31 +1029,35 @@ void VulkanBackend::updateUniforms(
             : 0.0f
     );
 
-    float lowestWorldY = std::numeric_limits<float>::infinity();
-    const float smoothMorphProgress =
-        morphProgress_ * morphProgress_ *
-        (3.0f - 2.0f * morphProgress_);
-
-    for (const Vertex& vertex : activeVertices) {
-        const glm::vec3 localPosition = glm::mix(
-            vertex.position,
-            vertex.targetPosition,
-            smoothMorphProgress
-        );
-        const glm::vec4 worldPosition =
-            sceneModelMatrix_ * glm::vec4(localPosition, 1.0f);
-        lowestWorldY = std::min(lowestWorldY, worldPosition.y);
-    }
-
     float objectGroundClearance = 0.0f;
-    if (std::isfinite(lowestWorldY)) {
-        const float vibrationMargin = vibrationEnabled_
-            ? vibrationAmplitude_
-            : 0.0f;
-        objectGroundClearance = std::max(
-            0.0f,
-            lowestWorldY - SCENE_GROUND_HEIGHT - vibrationMargin
-        );
+    if (groundReflectionEnabled_ && activeBoundsValid_) {
+        float lowestWorldY = std::numeric_limits<float>::infinity();
+        for (unsigned int corner = 0; corner < 8; ++corner) {
+            const glm::vec3 localPosition(
+                (corner & 1U) != 0U
+                    ? activeBoundsMaximum_.x
+                    : activeBoundsMinimum_.x,
+                (corner & 2U) != 0U
+                    ? activeBoundsMaximum_.y
+                    : activeBoundsMinimum_.y,
+                (corner & 4U) != 0U
+                    ? activeBoundsMaximum_.z
+                    : activeBoundsMinimum_.z
+            );
+            const glm::vec4 worldPosition =
+                sceneModelMatrix_ * glm::vec4(localPosition, 1.0f);
+            lowestWorldY = std::min(lowestWorldY, worldPosition.y);
+        }
+
+        if (std::isfinite(lowestWorldY)) {
+            const float vibrationMargin = vibrationEnabled_
+                ? vibrationAmplitude_
+                : 0.0f;
+            objectGroundClearance = std::max(
+                0.0f,
+                lowestWorldY - SCENE_GROUND_HEIGHT - vibrationMargin
+            );
+        }
     }
 
     ubo.ground = glm::vec4(

@@ -851,6 +851,8 @@ namespace chionia {
             );
 
             auto previousFrameTime = std::chrono::steady_clock::now();
+            float visualizationElapsedTime = 0.0f;
+            float presentationElapsedTime = 0.0f;
 
             while (
                 !terminal_.shouldExit() &&
@@ -867,8 +869,32 @@ namespace chionia {
                 );
                 previousFrameTime = frameStart;
 
+                if (editorPanel_.isPresentationTabActive()) {
+                    presentationElapsedTime += deltaTime;
+                }
+                else {
+                    visualizationElapsedTime += deltaTime;
+                }
+                const float activeAnimationTime =
+                    editorPanel_.isPresentationTabActive()
+                        ? presentationElapsedTime
+                        : visualizationElapsedTime;
+
+                CameraController* nextCameraController =
+                    editorPanel_.isPresentationTabActive()
+                        ? &presentationController_
+                        : &controller_;
+                if (activeCameraController_ != nextCameraController) {
+                    activeCameraController_->resetInputState();
+                    activeCameraController_ = nextCameraController;
+                    activeCameraController_->resetInputState();
+                    activeCameraController_->init(
+                        vk_.getWindow().getGLFWwindow()
+                    );
+                }
+
                 const ImGuiIO& io = ImGui::GetIO();
-                controller_.update(
+                activeCameraController_->update(
                     vk_.getWindow().getGLFWwindow(),
                     deltaTime,
                     !io.WantCaptureMouse && !io.WantCaptureKeyboard
@@ -878,7 +904,10 @@ namespace chionia {
                     activeSceneObjectId_,
                     queueShape,
                     camera_,
-                    controller_
+                    presentationCamera_,
+                    controller_,
+                    presentationController_,
+                    activeAnimationTime
                 );
 
                 processSceneCommands();
@@ -921,9 +950,13 @@ namespace chionia {
                 }
 
                 vk_.setOrbitElapsedTime(
-                    static_cast<float>(ImGui::GetTime())
+                    activeAnimationTime
                 );
-                vk_.drawFrame(camera_);
+                vk_.drawFrame(
+                    editorPanel_.isPresentationTabActive()
+                        ? presentationCamera_
+                        : camera_
+                );
 
                 std::this_thread::sleep_until(
                     frameStart + std::chrono::microseconds(16667)

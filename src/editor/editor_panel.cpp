@@ -17,6 +17,178 @@ namespace chionia {
 
         constexpr ImVec4 CYAN(0.10f, 0.78f, 1.00f, 1.00f);
         constexpr ImVec4 MUTED(0.57f, 0.67f, 0.79f, 1.00f);
+        constexpr const char* PRESENTATION_KEY = "lesson/presentation";
+        // Exclude older subject-specific keys if they exist in a live session.
+        constexpr const char* SOLAR_SYSTEM_KEY = "lesson/solar-system";
+        constexpr const char* HUMAN_CELL_KEY = "lesson/biology-human-cell";
+        constexpr const char* ANATOMY_KEY = "lesson/anatomy-heart";
+
+        bool isPresentationLayerKey(const std::string& key) {
+            return key == PRESENTATION_KEY ||
+                key == SOLAR_SYSTEM_KEY ||
+                key == HUMAN_CELL_KEY ||
+                key == ANATOMY_KEY;
+        }
+
+        enum class CardiacPhase {
+            Diastole,
+            AtrialSystole,
+            VentricularSystole,
+            Relaxation
+        };
+
+        struct CardiacCycleFrame {
+            CardiacPhase phase = CardiacPhase::Diastole;
+            float progress = 0.0f;
+            const char* label = "DIASTOLE  ·  passive ventricular filling";
+        };
+
+        CardiacCycleFrame getCardiacCycleFrame(float animationTime) {
+            constexpr float CYCLE_SECONDS = 0.92f;
+            const float phase = std::fmod(
+                std::max(animationTime, 0.0f),
+                CYCLE_SECONDS
+            ) / CYCLE_SECONDS;
+
+            if (phase < 0.20f) {
+                return {CardiacPhase::Diastole, phase / 0.20f,
+                    "DIASTOLE  ·  passive ventricular filling"};
+            }
+            if (phase < 0.32f) {
+                return {CardiacPhase::AtrialSystole,
+                    (phase - 0.20f) / 0.12f,
+                    "ATRIAL SYSTOLE  ·  final filling"};
+            }
+            if (phase < 0.68f) {
+                return {CardiacPhase::VentricularSystole,
+                    (phase - 0.32f) / 0.36f,
+                    "VENTRICULAR SYSTOLE  ·  blood ejected"};
+            }
+            if (phase < 0.82f) {
+                return {CardiacPhase::Relaxation,
+                    (phase - 0.68f) / 0.14f,
+                    "RELAXATION  ·  semilunar valves close"};
+            }
+            return {CardiacPhase::Diastole, (phase - 0.82f) / 0.18f,
+                "DIASTOLE  ·  filling begins again"};
+        }
+
+        float ecgWaveform(float phase) {
+            const auto gaussian = [](float value, float center, float width) {
+                const float scaled = (value - center) / width;
+                return std::exp(-0.5f * scaled * scaled);
+            };
+            return 0.19f * gaussian(phase, 0.245f, 0.025f) -
+                0.12f * gaussian(phase, 0.315f, 0.009f) +
+                0.78f * gaussian(phase, 0.332f, 0.008f) -
+                0.22f * gaussian(phase, 0.351f, 0.012f) +
+                0.31f * gaussian(phase, 0.735f, 0.050f);
+        }
+
+        void drawCardiacCycleOverlay(
+            ImDrawList* drawList,
+            const ImVec2& viewportPosition,
+            float width,
+            float height,
+            float animationTime
+        ) {
+            constexpr float PANEL_WIDTH = 440.0f;
+            constexpr float PANEL_HEIGHT = 94.0f;
+            const ImVec2 minimum(
+                viewportPosition.x + width - PANEL_WIDTH - 18.0f,
+                viewportPosition.y + height - PANEL_HEIGHT - 58.0f
+            );
+            const ImVec2 maximum(
+                minimum.x + PANEL_WIDTH,
+                minimum.y + PANEL_HEIGHT
+            );
+            const CardiacCycleFrame cycle =
+                getCardiacCycleFrame(animationTime);
+            const float normalizedTime = std::fmod(
+                std::max(animationTime, 0.0f),
+                0.92f
+            ) / 0.92f;
+
+            drawList->AddRectFilled(
+                minimum,
+                maximum,
+                IM_COL32(2, 12, 22, 224),
+                8.0f
+            );
+            drawList->AddRect(
+                minimum,
+                maximum,
+                IM_COL32(39, 119, 157, 178),
+                8.0f,
+                0,
+                1.0f
+            );
+            drawList->AddText(
+                ImVec2(minimum.x + 12.0f, minimum.y + 8.0f),
+                IM_COL32(112, 224, 255, 245),
+                "ECG  /  ONE ILLUSTRATIVE HEARTBEAT"
+            );
+            drawList->AddText(
+                ImVec2(minimum.x + 12.0f, minimum.y + 24.0f),
+                IM_COL32(197, 219, 232, 235),
+                cycle.label
+            );
+
+            const float plotLeft = minimum.x + 12.0f;
+            const float plotRight = maximum.x - 12.0f;
+            const float baseline = minimum.y + 64.0f;
+            const float plotWidth = plotRight - plotLeft;
+            drawList->AddLine(
+                ImVec2(plotLeft, baseline),
+                ImVec2(plotRight, baseline),
+                IM_COL32(49, 106, 130, 125),
+                1.0f
+            );
+
+            constexpr int SAMPLES = 180;
+            ImVec2 previous(plotLeft, baseline);
+            for (int sample = 1; sample <= SAMPLES; ++sample) {
+                const float phase = static_cast<float>(sample) /
+                    static_cast<float>(SAMPLES);
+                const ImVec2 current(
+                    plotLeft + phase * plotWidth,
+                    baseline - ecgWaveform(phase) * 33.0f
+                );
+                drawList->AddLine(
+                    previous,
+                    current,
+                    IM_COL32(59, 209, 243, 225),
+                    1.6f
+                );
+                previous = current;
+            }
+
+            const float cursorX = plotLeft + normalizedTime * plotWidth;
+            const float cursorY = baseline -
+                ecgWaveform(normalizedTime) * 33.0f;
+            drawList->AddLine(
+                ImVec2(cursorX, minimum.y + 42.0f),
+                ImVec2(cursorX, minimum.y + 78.0f),
+                IM_COL32(255, 219, 119, 160),
+                1.0f
+            );
+            drawList->AddCircleFilled(
+                ImVec2(cursorX, cursorY),
+                3.2f,
+                IM_COL32(255, 225, 143, 255)
+            );
+
+            const std::array<const char*, 5> waveNames = {{"P", "Q", "R", "S", "T"}};
+            const std::array<float, 5> wavePhases = {{0.245f, 0.315f, 0.332f, 0.351f, 0.735f}};
+            for (std::size_t index = 0; index < waveNames.size(); ++index) {
+                const float x = plotLeft + wavePhases[index] * plotWidth;
+                drawList->AddText(
+                    ImVec2(x - 3.0f, minimum.y + 76.0f),
+                    IM_COL32(137, 178, 198, 230),
+                    waveNames[index]
+                );
+            }
+        }
 
         constexpr ImGuiWindowFlags OVERLAY_FLAGS =
             ImGuiWindowFlags_NoDecoration |
@@ -141,6 +313,28 @@ namespace chionia {
           commandQueue_(commandQueue) {
     }
 
+    const char* EditorPanel::activePresentationKey() const {
+        return PRESENTATION_KEY;
+    }
+
+    bool EditorPanel::hasActivePresentation() const {
+        if (activePresentationSubject_ == PresentationSubject::HumanCell) {
+            return biologyLesson_.hasHumanCell();
+        }
+        if (activePresentationSubject_ == PresentationSubject::Anatomy) {
+            return anatomyLesson_.hasHeartCycle();
+        }
+        if (activePresentationSubject_ == PresentationSubject::AdditionalLesson) {
+            return testLesson_.hasLesson();
+        }
+        return activePresentationSubject_ == PresentationSubject::SolarSystem &&
+            solarSystemLesson_.hasSolarSystem();
+    }
+
+    bool EditorPanel::isPresentationTabActive() const {
+        return activeTab_ == Tab::Presentation;
+    }
+
     const EditorPanel::ShapeEntry* EditorPanel::getShapeEntries(
         std::size_t& count
     ) {
@@ -163,8 +357,11 @@ namespace chionia {
     void EditorPanel::draw(
         std::optional<SceneObjectId> activeObjectId,
         const std::function<void(const std::string&, bool)>& loadShape,
-        const Camera& camera,
-        CameraController& cameraController
+        const Camera& visualizationCamera,
+        const Camera& presentationCamera,
+        CameraController& visualizationCameraController,
+        CameraController& presentationCameraController,
+        float activeAnimationTime
     ) {
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         const ImVec2 size = viewport->Size;
@@ -172,6 +369,14 @@ namespace chionia {
         const Tab previousTab = activeTab_;
         drawTopBar(size.x);
         const bool tabChanged = previousTab != activeTab_;
+        const bool presentationTabActive =
+            activeTab_ == Tab::Presentation;
+        const Camera& activeCamera = presentationTabActive
+            ? presentationCamera
+            : visualizationCamera;
+        CameraController& activeCameraController = presentationTabActive
+            ? presentationCameraController
+            : visualizationCameraController;
         const bool returnToInfinity = returnToInfinityAfterClear_;
         const std::optional<SceneObjectId> savedVisualizationObject =
             visualizationObjectBeforePresentation_;
@@ -179,18 +384,18 @@ namespace chionia {
             if (activeTab_ == Tab::Presentation) {
                 enterPresentationMode(
                     activeObjectId,
-                    cameraController,
+                    presentationCameraController,
                     size.y
                 );
             }
             else if (previousTab == Tab::Presentation) {
-                restorePresentationView(cameraController);
+                restorePresentationView(presentationCameraController);
             }
         }
 
         std::optional<SceneObjectId> displayedObjectId = activeObjectId;
         if (activeTab_ == Tab::Presentation) {
-            displayedObjectId = scene_.findObjectByKey("lesson/solar-system");
+            displayedObjectId = scene_.findObjectByKey(activePresentationKey());
         }
         else if (previousTab == Tab::Presentation && tabChanged) {
             displayedObjectId = returnToInfinity
@@ -206,7 +411,7 @@ namespace chionia {
                         const SceneObject* object = scene_.findObject(objectId);
                         if (
                             object != nullptr &&
-                            object->getKey() != "lesson/solar-system"
+                            !isPresentationLayerKey(object->getKey())
                         ) {
                             displayedObjectId = objectId;
                         }
@@ -215,14 +420,25 @@ namespace chionia {
             }
         }
 
-        drawBackground(size.x, size.y, displayedObjectId, camera);
-        drawSidebar(size.y, displayedObjectId, loadShape, cameraController);
+        drawBackground(size.x, size.y, displayedObjectId, activeCamera);
+        drawSidebar(
+            size.y,
+            displayedObjectId,
+            loadShape,
+            activeCameraController
+        );
         drawFooter(size.x, size.y, displayedObjectId);
         if (
             activeTab_ == Tab::Presentation &&
-            solarSystemLesson_.hasSolarSystem()
+            hasActivePresentation()
         ) {
-            drawLessonAnnotations(size.x, size.y, displayedObjectId, camera);
+            drawLessonAnnotations(
+                size.x,
+                size.y,
+                displayedObjectId,
+                activeCamera,
+                activeAnimationTime
+            );
         }
     }
 
@@ -347,7 +563,11 @@ namespace chionia {
         };
 
         const bool presentationMode =
-            activeTab_ == Tab::Presentation || solarSystemLesson_.hasSolarSystem();
+            activeTab_ == Tab::Presentation ||
+            solarSystemLesson_.hasSolarSystem() ||
+            biologyLesson_.hasHumanCell() ||
+            anatomyLesson_.hasHeartCycle() ||
+            testLesson_.hasLesson();
         if (!presentationMode) {
             for (int i = -9; i <= 9; ++i) {
                 drawGroundGridLine(
@@ -450,7 +670,8 @@ namespace chionia {
         float width,
         float height,
         std::optional<SceneObjectId> activeObjectId,
-        const Camera& camera
+        const Camera& camera,
+        float animationTime
     ) {
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         ImDrawList* drawList = ImGui::GetForegroundDrawList();
@@ -459,21 +680,41 @@ namespace chionia {
         const float boardTop = viewport->Pos.y + 140.0f;
         const float boardBottom = viewport->Pos.y + height - 52.0f;
 
+        const bool humanCellPresentation =
+            activePresentationSubject_ == PresentationSubject::HumanCell;
+        const bool anatomyPresentation =
+            activePresentationSubject_ == PresentationSubject::Anatomy;
+        const bool additionalLessonPresentation =
+            activePresentationSubject_ == PresentationSubject::AdditionalLesson;
+        const char* lessonTitle = humanCellPresentation
+            ? "HUMAN CELL"
+            : anatomyPresentation
+                ? "ANATOMY  /  THE CARDIAC CYCLE"
+                : additionalLessonPresentation
+                    ? testLesson_.getTitle()
+                    : "SOLAR SYSTEM";
+        const char* lessonSubtitle = humanCellPresentation
+            ? "TYPICAL ANIMAL CELL  /  SCHEMATIC, NOT TO SCALE"
+            : anatomyPresentation
+                ? "FOUR CHAMBERS  /  TWO CIRCUITS  /  ANIMATED FLOW TRACER"
+                : additionalLessonPresentation
+                    ? testLesson_.getSubtitle()
+                    : solarSystemLesson_.hasGravityExplanation()
+                        ? "CYAN ARROWS  /  GRAVITY PULLS TOWARD THE SUN"
+                        : "SIZES AND DISTANCES SIMPLIFIED  /  ORBITS ACCELERATED";
         drawList->AddText(
             nullptr,
             18.0f,
             ImVec2(boardLeft + 16.0f, boardTop + 6.0f),
             IM_COL32(139, 226, 255, 240),
-            "SOLAR SYSTEM"
+            lessonTitle
         );
         drawList->AddText(
             nullptr,
             12.0f,
             ImVec2(boardLeft + 17.0f, boardTop + 27.0f),
             IM_COL32(118, 151, 183, 225),
-            solarSystemLesson_.hasGravityExplanation()
-                ? "CYAN ARROWS  /  GRAVITY PULLS TOWARD THE SUN"
-                : "SIZES AND DISTANCES SIMPLIFIED  /  ORBITS ACCELERATED"
+            lessonSubtitle
         );
         drawList->AddLine(
             ImVec2(boardLeft + 16.0f, boardTop + 48.0f),
@@ -491,7 +732,7 @@ namespace chionia {
         float animationSpeed = 1.0f;
         if (activeObjectId) {
             const SceneObject* object = scene_.findObject(*activeObjectId);
-            if (object != nullptr && object->getKey() == "lesson/solar-system") {
+            if (object != nullptr && isPresentationLayerKey(object->getKey())) {
                 model = object->getTransform().getModelMatrix();
                 animationSpeed = object->getAnimationSpeed();
             }
@@ -503,9 +744,255 @@ namespace chionia {
         );
         std::vector<AnnotationRect> occupiedLabels;
 
-        for (const SolarSystemLessonLabel& label : solarSystemLesson_.getLabels(
-            static_cast<float>(ImGui::GetTime()) * animationSpeed
-        )) {
+        std::vector<LessonLabel> labels;
+        if (humanCellPresentation) {
+            const auto cellLabels = biologyLesson_.getLabels();
+            labels.assign(cellLabels.begin(), cellLabels.end());
+        }
+        else if (anatomyPresentation) {
+            const auto anatomyLabels = anatomyLesson_.getLabels();
+            labels.assign(anatomyLabels.begin(), anatomyLabels.end());
+        }
+        else if (additionalLessonPresentation) {
+            labels = testLesson_.getLabels();
+        }
+        else {
+            const auto solarSystemLabels = solarSystemLesson_.getLabels(
+                animationTime * animationSpeed
+            );
+            labels.assign(
+                solarSystemLabels.begin(),
+                solarSystemLabels.end()
+            );
+        }
+
+        if (anatomyPresentation) {
+            const CardiacCycleFrame cycle = getCardiacCycleFrame(
+                animationTime * animationSpeed
+            );
+            if (
+                cycle.phase == CardiacPhase::AtrialSystole ||
+                cycle.phase == CardiacPhase::VentricularSystole
+            ) {
+                const float pulse = 0.5f + 0.5f * std::sin(
+                    cycle.progress * 3.14159265359f
+                );
+                const bool atriaActive =
+                    cycle.phase == CardiacPhase::AtrialSystole;
+                const std::array<glm::vec3, 2> chamberCenters = atriaActive
+                    ? std::array<glm::vec3, 2>{{
+                        {-0.28f, 0.31f, 0.24f},
+                        {0.27f, 0.31f, 0.24f}
+                    }}
+                    : std::array<glm::vec3, 2>{{
+                        {-0.27f, -0.20f, 0.25f},
+                        {0.27f, -0.20f, 0.27f}
+                    }};
+                const ImU32 pulseColor = atriaActive
+                    ? IM_COL32(98, 199, 255, 165)
+                    : IM_COL32(255, 153, 104, 175);
+
+                for (const glm::vec3& center : chamberCenters) {
+                    const glm::vec4 clip = projection * view * model *
+                        glm::vec4(center, 1.0f);
+                    if (clip.w <= 0.08f) {
+                        continue;
+                    }
+                    const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+                    const ImVec2 screen(
+                        viewport->Pos.x + (ndc.x + 1.0f) * width * 0.5f,
+                        viewport->Pos.y + (ndc.y + 1.0f) * height * 0.5f
+                    );
+                    const float radius = 24.0f + pulse * 10.0f;
+                    drawList->AddCircle(
+                        screen,
+                        radius,
+                        pulseColor,
+                        40,
+                        1.5f
+                    );
+                    drawList->AddCircle(
+                        screen,
+                        radius + 5.0f,
+                        (pulseColor & 0x00FFFFFFu) | 0x40000000u,
+                        40,
+                        1.0f
+                    );
+                }
+
+                const auto drawImpulse = [&](const glm::vec3& worldPosition) {
+                    const glm::vec4 clip = projection * view * model *
+                        glm::vec4(worldPosition, 1.0f);
+                    if (clip.w <= 0.08f) {
+                        return;
+                    }
+                    const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+                    const ImVec2 screen(
+                        viewport->Pos.x + (ndc.x + 1.0f) * width * 0.5f,
+                        viewport->Pos.y + (ndc.y + 1.0f) * height * 0.5f
+                    );
+                    drawList->AddCircleFilled(
+                        screen,
+                        7.0f,
+                        IM_COL32(255, 226, 115, 82)
+                    );
+                    drawList->AddCircleFilled(
+                        screen,
+                        3.0f,
+                        IM_COL32(255, 246, 185, 255)
+                    );
+                };
+
+                if (atriaActive) {
+                    const glm::vec3 sinoatrialNode(-0.36f, 0.45f, 0.255f);
+                    const glm::vec3 atrioventricularNode(-0.01f, 0.08f, 0.26f);
+                    drawImpulse(glm::mix(
+                        sinoatrialNode,
+                        atrioventricularNode,
+                        cycle.progress
+                    ));
+                }
+                else {
+                    constexpr glm::vec3 BUNDLE_START(-0.01f, 0.08f, 0.26f);
+                    constexpr glm::vec3 BUNDLE_SPLIT(-0.01f, -0.32f, 0.26f);
+                    const float branchProgress = std::clamp(
+                        (cycle.progress - 0.20f) / 0.80f,
+                        0.0f,
+                        1.0f
+                    );
+                    if (cycle.progress < 0.20f) {
+                        drawImpulse(glm::mix(
+                            BUNDLE_START,
+                            BUNDLE_SPLIT,
+                            cycle.progress / 0.20f
+                        ));
+                    }
+                    else {
+                        drawImpulse(glm::mix(
+                            BUNDLE_SPLIT,
+                            glm::vec3(-0.31f, -0.66f, 0.26f),
+                            branchProgress
+                        ));
+                        drawImpulse(glm::mix(
+                            BUNDLE_SPLIT,
+                            glm::vec3(0.31f, -0.66f, 0.26f),
+                            branchProgress
+                        ));
+                    }
+                }
+            }
+        }
+
+        if (additionalLessonPresentation) {
+            const auto marker = testLesson_.getAnimationMarker(
+                animationTime * animationSpeed
+            );
+            if (marker) {
+                const glm::vec4 clip = projection * view * model *
+                    glm::vec4(marker->position, 1.0f);
+                if (clip.w > 0.08f) {
+                    const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+                    const ImVec2 screen(
+                        viewport->Pos.x + (ndc.x + 1.0f) * width * 0.5f,
+                        viewport->Pos.y + (ndc.y + 1.0f) * height * 0.5f
+                    );
+                    const float pulse = 0.5f + 0.5f * std::sin(
+                        animationTime * 4.2f
+                    );
+                    const ImU32 markerColor = ImGui::ColorConvertFloat4ToU32(
+                        ImVec4(
+                            marker->color.r,
+                            marker->color.g,
+                            marker->color.b,
+                            marker->color.a
+                        )
+                    );
+                    drawList->AddCircle(
+                        screen,
+                        5.0f + pulse * 2.0f,
+                        markerColor,
+                        24,
+                        2.0f
+                    );
+                    drawList->AddCircleFilled(
+                        screen,
+                        2.3f,
+                        markerColor
+                    );
+                }
+            }
+        }
+
+        if (anatomyPresentation) {
+            // This schematic tracer uses a slower timescale than the ECG: a
+            // single red blood cell traverses the pulmonary and systemic
+            // circuits over several seconds, not within one heartbeat.
+            constexpr std::array<glm::vec3, 12> FLOW_ROUTE = {{
+                {-0.25f, 1.00f, 0.08f},
+                {-0.28f, 0.31f, 0.24f},
+                {-0.27f, 0.035f, 0.25f},
+                {-0.27f, -0.20f, 0.25f},
+                {-0.12f, 0.65f, 0.18f},
+                {-0.70f, 0.84f, 0.09f},
+                {-0.70f, 0.56f, 0.07f},
+                {0.27f, 0.31f, 0.24f},
+                {0.27f, 0.035f, 0.25f},
+                {0.27f, -0.20f, 0.27f},
+                {0.19f, 0.73f, 0.17f},
+                {-0.22f, 1.07f, 0.10f}
+            }};
+            constexpr float TRACER_SECONDS = 12.0f;
+            const float tracerPosition = std::fmod(
+                std::max(animationTime, 0.0f),
+                TRACER_SECONDS
+            ) / TRACER_SECONDS * static_cast<float>(FLOW_ROUTE.size() - 1);
+            const std::size_t routeSegment = std::min(
+                static_cast<std::size_t>(tracerPosition),
+                FLOW_ROUTE.size() - 2
+            );
+            const float segmentProgress = tracerPosition -
+                static_cast<float>(routeSegment);
+            const glm::vec3 tracerWorldPosition = glm::mix(
+                FLOW_ROUTE[routeSegment],
+                FLOW_ROUTE[routeSegment + 1],
+                segmentProgress
+            );
+            const glm::vec4 tracerClip = projection * view * model *
+                glm::vec4(tracerWorldPosition, 1.0f);
+            if (tracerClip.w > 0.08f) {
+                const glm::vec3 tracerNdc = glm::vec3(tracerClip) /
+                    tracerClip.w;
+                const ImVec2 tracerScreen(
+                    viewport->Pos.x + (tracerNdc.x + 1.0f) * width * 0.5f,
+                    viewport->Pos.y + (tracerNdc.y + 1.0f) * height * 0.5f
+                );
+                const bool oxygenated = routeSegment >= 5;
+                const ImU32 tracerColor = oxygenated
+                    ? IM_COL32(255, 94, 111, 255)
+                    : IM_COL32(68, 192, 255, 255);
+                drawList->AddCircleFilled(
+                    tracerScreen,
+                    9.0f,
+                    oxygenated
+                        ? IM_COL32(255, 94, 111, 70)
+                        : IM_COL32(68, 192, 255, 70)
+                );
+                drawList->AddCircle(
+                    tracerScreen,
+                    5.5f,
+                    tracerColor,
+                    20,
+                    2.0f
+                );
+                drawList->AddCircleFilled(
+                    tracerScreen,
+                    2.0f,
+                    IM_COL32(255, 245, 221, 255)
+                );
+            }
+        }
+
+        for (const LessonLabel& label : labels) {
             if (presentationLabelMode_ == PresentationLabelMode::Hidden) {
                 continue;
             }
@@ -660,6 +1147,16 @@ namespace chionia {
                 label.text.data() + label.text.size()
             );
         }
+
+        if (anatomyPresentation) {
+            drawCardiacCycleOverlay(
+                drawList,
+                viewport->Pos,
+                width,
+                height,
+                animationTime * animationSpeed
+            );
+        }
     }
 
     void EditorPanel::drawTopBar(float width) {
@@ -706,14 +1203,6 @@ namespace chionia {
             }
             ImGui::SameLine(0.0f, 7.0f);
             if (drawTabButton(
-                "Shapes",
-                activeTab_ == Tab::Shapes,
-                ImVec2(82.0f, 44.0f)
-            )) {
-                activeTab_ = Tab::Shapes;
-            }
-            ImGui::SameLine(0.0f, 7.0f);
-            if (drawTabButton(
                 "Settings",
                 activeTab_ == Tab::Settings,
                 ImVec2(92.0f, 44.0f)
@@ -754,12 +1243,12 @@ namespace chionia {
         CameraController& cameraController,
         float viewportHeight
     ) {
-        constexpr const char* PRESENTATION_KEY = "lesson/solar-system";
+        const char* presentationKey = activePresentationKey();
         if (activeObjectId) {
             const SceneObject* activeObject = scene_.findObject(*activeObjectId);
             if (
                 activeObject != nullptr &&
-                activeObject->getKey() != PRESENTATION_KEY
+                !isPresentationLayerKey(activeObject->getKey())
             ) {
                 visualizationObjectBeforePresentation_ = *activeObjectId;
             }
@@ -767,31 +1256,23 @@ namespace chionia {
 
         if (!settingsBeforeLesson_) {
             settingsBeforeLesson_ = scene_.getRenderSettings();
-            cameraDistanceBeforeLesson_ =
-                cameraController.getTargetOrbitRadius();
-            cameraTargetBeforeLesson_ = cameraController.getOrbitTarget();
-            cameraAnglesBeforeLesson_ = cameraController.getOrbitAngles();
         }
 
-        SceneRenderSettings settings = scene_.getRenderSettings();
-        settings.morphDurationSeconds = 2.6f;
-        settings.vibrationEnabled = false;
-        settings.morphingEnabled = true;
-        settings.autoMorphEnabled = false;
-        settings.groundReflectionEnabled = false;
-        settings.energyEffectsEnabled = true;
-        commandQueue_.enqueue(SetSceneRenderSettingsCommand{settings});
-
-        if (
-            presentationCameraDistance_ &&
-            presentationCameraTarget_ &&
-            presentationCameraAngles_
-        ) {
-            cameraController.setOrbitAngles(*presentationCameraAngles_);
-            cameraController.setOrbitTarget(*presentationCameraTarget_);
-            cameraController.setOrbitRadius(*presentationCameraDistance_);
+        if (!presentationRenderSettings_) {
+            SceneRenderSettings settings = scene_.getRenderSettings();
+            settings.morphDurationSeconds = 2.6f;
+            settings.vibrationEnabled = false;
+            settings.morphingEnabled = true;
+            settings.autoMorphEnabled = false;
+            settings.groundReflectionEnabled = false;
+            settings.energyEffectsEnabled = true;
+            presentationRenderSettings_ = settings;
         }
-        else {
+        commandQueue_.enqueue(
+            SetSceneRenderSettingsCommand{*presentationRenderSettings_}
+        );
+
+        if (!presentationCameraInitialized_) {
             cameraController.setOrbitTarget(glm::vec3(0.0f));
             cameraController.setOrbitAngles(
                 glm::vec2(glm::radians(180.0f), 0.0f)
@@ -801,18 +1282,59 @@ namespace chionia {
                 144.0f,
                 viewportHeight
             );
+            presentationCameraInitialized_ = true;
         }
+        cameraController.resetInputState();
 
-        if (const auto presentationId = scene_.findObjectByKey(PRESENTATION_KEY)) {
+        if (const auto presentationId = scene_.findObjectByKey(presentationKey)) {
             commandQueue_.enqueue(
                 SelectSceneObjectCommand{*presentationId, true}
             );
         }
-        else if (solarSystemLesson_.hasSolarSystem()) {
+        else if (
+            activePresentationSubject_ == PresentationSubject::HumanCell &&
+            biologyLesson_.hasHumanCell()
+        ) {
             commandQueue_.enqueue(
                 UpsertPointCloudCommand{
-                    PRESENTATION_KEY,
+                    presentationKey,
+                    biologyLesson_.buildPointCloud(),
+                    true
+                }
+            );
+        }
+        else if (
+            activePresentationSubject_ == PresentationSubject::Anatomy &&
+            anatomyLesson_.hasHeartCycle()
+        ) {
+            commandQueue_.enqueue(
+                UpsertPointCloudCommand{
+                    presentationKey,
+                    anatomyLesson_.buildPointCloud(),
+                    true
+                }
+            );
+        }
+        else if (
+            activePresentationSubject_ == PresentationSubject::SolarSystem &&
+            solarSystemLesson_.hasSolarSystem()
+        ) {
+            commandQueue_.enqueue(
+                UpsertPointCloudCommand{
+                    presentationKey,
                     solarSystemLesson_.buildPointCloud(),
+                    true
+                }
+            );
+        }
+        else if (
+            activePresentationSubject_ == PresentationSubject::AdditionalLesson &&
+            testLesson_.hasLesson()
+        ) {
+            commandQueue_.enqueue(
+                UpsertPointCloudCommand{
+                    presentationKey,
+                    testLesson_.buildPointCloud(),
                     true
                 }
             );
@@ -822,7 +1344,7 @@ namespace chionia {
             presentationInfinityConfig.pointCount = MORPH_PARTICLE_COUNT;
             commandQueue_.enqueue(
                 UpsertPointCloudCommand{
-                    PRESENTATION_KEY,
+                    presentationKey,
                     InfinityGenerator::generate(presentationInfinityConfig),
                     true
                 }
@@ -832,7 +1354,7 @@ namespace chionia {
         }
 
         cameraController.setCinematicOrbit(
-            cinematicCameraEnabled_ && solarSystemLesson_.hasSolarSystem()
+            cinematicCameraEnabled_ && hasActivePresentation()
         );
     }
 
@@ -841,30 +1363,18 @@ namespace chionia {
         bool selectVisualizationObject
     ) {
         cameraController.setCinematicOrbit(false);
-        if (selectVisualizationObject && solarSystemLesson_.hasSolarSystem()) {
-            presentationCameraDistance_ =
-                cameraController.getTargetOrbitRadius();
-            presentationCameraTarget_ = cameraController.getOrbitTarget();
-            presentationCameraAngles_ = cameraController.getOrbitAngles();
+        cameraController.resetInputState();
+        if (selectVisualizationObject) {
+            presentationRenderSettings_ = scene_.getRenderSettings();
+        }
+        else {
+            presentationRenderSettings_.reset();
         }
         if (settingsBeforeLesson_) {
             commandQueue_.enqueue(
                 SetSceneRenderSettingsCommand{*settingsBeforeLesson_}
             );
             settingsBeforeLesson_.reset();
-        }
-
-        if (cameraTargetBeforeLesson_) {
-            cameraController.setOrbitTarget(*cameraTargetBeforeLesson_);
-            cameraTargetBeforeLesson_.reset();
-        }
-        if (cameraAnglesBeforeLesson_) {
-            cameraController.setOrbitAngles(*cameraAnglesBeforeLesson_);
-            cameraAnglesBeforeLesson_.reset();
-        }
-        if (cameraDistanceBeforeLesson_) {
-            cameraController.setOrbitRadius(*cameraDistanceBeforeLesson_);
-            cameraDistanceBeforeLesson_.reset();
         }
 
         if (selectVisualizationObject) {
@@ -887,7 +1397,7 @@ namespace chionia {
                         const SceneObject* object = scene_.findObject(objectId);
                         if (
                             object != nullptr &&
-                            object->getKey() != "lesson/solar-system"
+                            !isPresentationLayerKey(object->getKey())
                         ) {
                             visualizationObjectId = objectId;
                         }
@@ -927,14 +1437,8 @@ namespace chionia {
         );
 
         if (ImGui::Begin("##ChioniaSidebar", nullptr, OVERLAY_FLAGS)) {
-            const float libraryHeight = activeTab_ == Tab::Visualization
-                ? panelHeight * 0.44f
-                : panelHeight * 0.55f;
-
-            if (
-                activeTab_ == Tab::Visualization ||
-                activeTab_ == Tab::Shapes
-            ) {
+            if (activeTab_ == Tab::Visualization) {
+                const float libraryHeight = panelHeight * 0.44f;
                 drawShapeLibrary(libraryHeight, activeObjectId, loadShape);
             }
 
@@ -944,10 +1448,6 @@ namespace chionia {
             }
             else if (activeTab_ == Tab::Presentation) {
                 drawPresentationControls(cameraController);
-            }
-            else if (activeTab_ == Tab::Shapes) {
-                ImGui::Spacing();
-                drawProceduralControls();
             }
             else if (activeTab_ == Tab::Settings) {
                 drawObjectSettings(activeObjectId);
@@ -978,9 +1478,7 @@ namespace chionia {
 
         std::size_t count = 0;
         const ShapeEntry* entries = getShapeEntries(count);
-        const std::size_t visibleCount = activeTab_ == Tab::Visualization
-            ? std::min<std::size_t>(count, 6)
-            : count;
+        const std::size_t visibleCount = count;
         const SceneObject* activeObject = activeObjectId
             ? scene_.findObject(*activeObjectId)
             : nullptr;
@@ -1134,12 +1632,20 @@ namespace chionia {
             );
         }
 
+        ImGui::Spacing();
+        drawProceduralControls();
+
         ImGui::EndChild();
     }
 
     void EditorPanel::drawProceduralControls() {
-        ImGui::BeginChild("##ProceduralInfinity", ImVec2(0.0f, 0.0f), true);
-        drawSectionTitle("Procedural Infinity");
+        ImGui::Separator();
+        if (!ImGui::CollapsingHeader("Infinity Generator")) {
+            return;
+        }
+        ImGui::TextWrapped(
+            "Create or refine the infinity shape in the Visualization scene."
+        );
 
         int pointCount = static_cast<int>(infinityConfig_.pointCount);
         if (ImGui::InputInt("Points", &pointCount, 1000, 5000)) {
@@ -1166,18 +1672,114 @@ namespace chionia {
                 }
             );
         }
-
-        ImGui::EndChild();
     }
 
     void EditorPanel::drawPresentationControls(CameraController& cameraController) {
         ImGui::BeginChild("##LessonControls", ImVec2(0.0f, 0.0f), true);
         drawSectionTitle("Build from lesson text");
         ImGui::TextWrapped(
-            "Paste a short passage. This preview recognizes solar-system and "
-            "gravity concepts."
+            "Paste a short passage or choose one of ten temporary lessons "
+            "to preview a different subject-specific scene."
         );
         ImGui::Spacing();
+        ImGui::TextColored(MUTED, "Temporary test presets");
+        constexpr std::array<const char*, 11> TEST_EXAMPLES = {{
+            "Choose an example...",
+            "Solar system  /  astronomy",
+            "Human cell  /  biology",
+            "Heart and cardiac cycle  /  anatomy",
+            "Series circuit  /  physics",
+            "Carbon-12 atom  /  chemistry",
+            "Water cycle  /  earth science",
+            "Plate boundaries  /  geology",
+            "Marine food web  /  ecology",
+            "Pythagorean theorem  /  mathematics",
+            "Cold front  /  meteorology"
+        }};
+        constexpr std::array<const char*, 11> TEST_TRANSCRIPTS = {{
+            "",
+            "Our solar system consists of the Sun and eight planets that orbit "
+                "it. The planets follow elliptical paths around the Sun. Their "
+                "distances and sizes in this model are simplified.",
+            "A typical human cell is enclosed by a plasma membrane. Its "
+            "cytoplasm contains organelles, and its nucleus stores DNA as "
+            "chromatin. Ribosomes build proteins, while mitochondria "
+                "produce ATP.",
+            "Today, we will follow one red blood cell through the heart and "
+                "lungs. Deoxygenated blood returning from the body enters the "
+                "right atrium through the venae cavae, passes through the "
+                "tricuspid valve into the right ventricle, and is pumped "
+                "through the pulmonary valve and pulmonary arteries to the "
+                "lungs. There, carbon dioxide leaves the blood and oxygen "
+                "enters. Oxygenated blood returns through the pulmonary veins "
+                "to the left atrium, crosses the mitral valve into the left "
+                "ventricle, and is ejected through the aortic valve into the "
+                "aorta and systemic circulation. The four valves keep blood "
+                "moving one way. The animation is schematic and not to scale.",
+            "In a series circuit, a battery, resistor, and lamp are connected "
+                "in one closed path. Conventional current leaves the battery "
+                "positive terminal and passes through the resistor and lamp "
+                "before returning to the negative terminal. Electrons drift "
+                "the opposite way in the external wires. The current is the "
+                "same through every component in this single series loop.",
+            "A carbon-12 atom has six protons and six neutrons in its nucleus, "
+                "with six electrons. In this simplified shell model, two "
+                "electrons occupy the first shell and four are shown in the "
+                "second. These rings are a teaching diagram: real electrons "
+                "occupy quantum states and are not tiny planets on fixed "
+                "circular tracks.",
+            "In the water cycle, sunlight supplies energy for evaporation "
+                "from oceans and lakes, while plants return water vapor by "
+                "transpiration. As moist air cools, condensation forms clouds; "
+                "water then falls as precipitation. Some flows over land as "
+                "runoff, and some infiltrates soil to recharge groundwater. "
+                "Rivers and groundwater eventually carry water back toward "
+                "the ocean. The cycle is continuous and has no single start.",
+            "At a divergent plate boundary, plates move apart and magma can "
+                "rise and cool to form new crust. At an oceanic-continental "
+                "convergent boundary, denser oceanic lithosphere bends "
+                "beneath the continent in a subduction zone. At a transform "
+                "boundary, neighboring plates slide sideways past one "
+                "another. These cross-sections are simplified and not to "
+                "scale.",
+            "In this simplified marine food web, sunlight supplies energy to "
+                "phytoplankton, the producers. Zooplankton eat phytoplankton, "
+                "and small fish eat zooplankton; larger fish may eat the "
+                "smaller fish. Arrows point from food to consumer. Decomposers "
+                "break down remains and return nutrients to the ecosystem, "
+                "while energy flows through the web and is eventually lost "
+                "as heat.",
+            "For a right triangle, the Pythagorean theorem states that a "
+                "squared plus b squared equals c squared, where c is the "
+                "hypotenuse opposite the right angle. In a 3-4-5 example, "
+                "the squares on the legs have areas 9 and 16 square units, "
+                "and the square on the hypotenuse has area 25 square units: "
+                "9 plus 16 equals 25.",
+            "A cold front forms when advancing, denser cold air wedges beneath "
+                "warmer air and forces it upward. If the warm air is moist and "
+                "the atmosphere is unstable, rapid uplift may produce clouds "
+                "and showers or thunderstorms near the front. The exact "
+                "weather depends on local conditions; this cross-section is "
+                "a teaching schematic, not a forecast."
+        }};
+        ImGui::SetNextItemWidth(-1.0f);
+        if (ImGui::Combo(
+                "##TestExample",
+                &testLessonExampleIndex_,
+                TEST_EXAMPLES.data(),
+                static_cast<int>(TEST_EXAMPLES.size())
+            )) {
+            if (testLessonExampleIndex_ > 0) {
+                std::snprintf(
+                    lessonTranscript_.data(),
+                    lessonTranscript_.size(),
+                    "%s",
+                    TEST_TRANSCRIPTS[static_cast<std::size_t>(
+                        testLessonExampleIndex_
+                    )]
+                );
+            }
+        }
         ImGui::TextColored(CYAN, "TRANSCRIPT");
         ImGui::SameLine();
         const std::size_t transcriptBytes =
@@ -1221,39 +1823,136 @@ namespace chionia {
         ImGui::PopStyleVar(2);
 
         if (ImGui::Button("Build presentation", ImVec2(-1.0f, 36.0f))) {
-            const bool changed = solarSystemLesson_.applyTranscript(
-                lessonTranscript_.data()
-            );
+            const std::string_view transcript(lessonTranscript_.data());
+            const bool anatomyRecognized =
+                anatomyLesson_.recognizesTranscript(transcript);
+            const bool cellRecognized =
+                biologyLesson_.recognizesTranscript(transcript);
+            const bool solarSystemRecognized =
+                solarSystemLesson_.recognizesTranscript(transcript);
+            const bool additionalLessonRecognized =
+                testLesson_.recognizesTranscript(transcript);
+            const bool anatomyChanged =
+                anatomyLesson_.applyTranscript(transcript);
+            const bool cellChanged = biologyLesson_.applyTranscript(transcript);
+            const bool solarSystemChanged =
+                solarSystemLesson_.applyTranscript(transcript);
+            const bool additionalLessonChanged =
+                testLesson_.applyTranscript(transcript);
+            const PresentationSubject previousSubject =
+                activePresentationSubject_;
+            if (anatomyRecognized) {
+                activePresentationSubject_ = PresentationSubject::Anatomy;
+            }
+            else if (cellRecognized) {
+                activePresentationSubject_ = PresentationSubject::HumanCell;
+            }
+            else if (additionalLessonRecognized) {
+                activePresentationSubject_ =
+                    PresentationSubject::AdditionalLesson;
+            }
+            else if (solarSystemRecognized) {
+                activePresentationSubject_ = PresentationSubject::SolarSystem;
+            }
 
-            if (changed && solarSystemLesson_.hasSolarSystem()) {
+            const bool subjectChanged =
+                activePresentationSubject_ != previousSubject;
+            const bool recognized =
+                anatomyRecognized || cellRecognized ||
+                additionalLessonRecognized || solarSystemRecognized;
+            if (
+                recognized &&
+                (anatomyChanged || cellChanged || solarSystemChanged ||
+                 additionalLessonChanged || subjectChanged)
+            ) {
                 SceneRenderSettings settings = scene_.getRenderSettings();
                 settings.vibrationEnabled = false;
                 settings.morphingEnabled = true;
                 settings.autoMorphEnabled = false;
                 settings.groundReflectionEnabled = false;
                 settings.energyEffectsEnabled = false;
+                presentationRenderSettings_ = settings;
                 commandQueue_.enqueue(
                     SetSceneRenderSettingsCommand{settings}
                 );
-                commandQueue_.enqueue(
-                    UpsertPointCloudCommand{
-                        "lesson/solar-system",
-                        solarSystemLesson_.buildPointCloud()
+                if (
+                    activePresentationSubject_ ==
+                    PresentationSubject::Anatomy
+                ) {
+                    if (anatomyChanged || subjectChanged) {
+                        // The default orbit sees the posterior side of this
+                        // anterior cutaway, reversing patient left and right.
+                        cameraController.setOrbitAngles(glm::vec2(0.0f));
+                        cameraController.setOrbitTarget(glm::vec3(0.0f));
+                        cameraController.setOrbitRadius(4.0f);
                     }
+                    commandQueue_.enqueue(
+                        UpsertPointCloudCommand{
+                            PRESENTATION_KEY,
+                            anatomyLesson_.buildPointCloud()
+                        }
+                    );
+                    lessonFeedback_ =
+                        "Anatomy lecture built: follow blood through the "
+                        "four chambers, lungs, and systemic circuit.";
+                }
+                else if (
+                    activePresentationSubject_ ==
+                    PresentationSubject::HumanCell
+                ) {
+                    commandQueue_.enqueue(
+                        UpsertPointCloudCommand{
+                            PRESENTATION_KEY,
+                            biologyLesson_.buildPointCloud()
+                        }
+                    );
+                    lessonFeedback_ =
+                        "Human cell built: membrane, cytoplasm, nucleus, DNA "
+                        "and organelles.";
+                }
+                else if (
+                    activePresentationSubject_ ==
+                    PresentationSubject::AdditionalLesson
+                ) {
+                    if (additionalLessonChanged || subjectChanged) {
+                        // These teaching diagrams are drawn face-on in the XY
+                        // plane, so use a consistent front view when switching.
+                        cameraController.setOrbitAngles(glm::vec2(0.0f));
+                        cameraController.setOrbitTarget(glm::vec3(0.0f));
+                        cameraController.setOrbitRadius(4.2f);
+                    }
+                    commandQueue_.enqueue(
+                        UpsertPointCloudCommand{
+                            PRESENTATION_KEY,
+                            testLesson_.buildPointCloud()
+                        }
+                    );
+                    lessonFeedback_ = testLesson_.getFeedback();
+                }
+                else {
+                    commandQueue_.enqueue(
+                        UpsertPointCloudCommand{
+                            PRESENTATION_KEY,
+                            solarSystemLesson_.buildPointCloud()
+                        }
+                    );
+                    lessonFeedback_ =
+                        solarSystemLesson_.hasGravityExplanation()
+                            ? "Gravity added to the existing solar-system scene."
+                            : "Solar-system presentation built.";
+                }
+                cameraController.setCinematicOrbit(
+                    cinematicCameraEnabled_ && hasActivePresentation()
                 );
-                cameraController.setCinematicOrbit(cinematicCameraEnabled_);
-
-                lessonFeedback_ = solarSystemLesson_.hasGravityExplanation()
-                    ? "Gravity added to the existing solar-system scene."
-                    : "Presentation built. It will grow as new ideas arrive.";
             }
-            else if (solarSystemLesson_.hasSolarSystem()) {
+            else if (recognized) {
                 lessonFeedback_ =
-                    "The scene is unchanged; no new lesson concept was recognized.";
+                    "That lesson is already in the presentation; the scene is unchanged.";
             }
             else {
                 lessonFeedback_ =
-                    "Waiting for a solar-system explanation mentioning the Sun and orbits.";
+                    "Waiting for one of the supported test lessons. "
+                    "Choose an example or paste a matching passage.";
             }
         }
 
@@ -1262,12 +1961,12 @@ namespace chionia {
 
         if (ImGui::Checkbox("Cinematic camera", &cinematicCameraEnabled_)) {
             cameraController.setCinematicOrbit(
-                cinematicCameraEnabled_ && solarSystemLesson_.hasSolarSystem()
+                cinematicCameraEnabled_ && hasActivePresentation()
             );
         }
         ImGui::TextColored(MUTED, "Slow orbit pauses while you drag or zoom.");
 
-        if (solarSystemLesson_.hasSolarSystem()) {
+        if (hasActivePresentation()) {
             ImGui::Spacing();
             ImGui::Separator();
             const char* labelModes[] = {
@@ -1282,49 +1981,135 @@ namespace chionia {
                 presentationLabelMode_ =
                     static_cast<PresentationLabelMode>(labelMode);
             }
-            if (presentationLabelMode_ == PresentationLabelMode::SystemObjects) {
+            if (
+                activePresentationSubject_ == PresentationSubject::HumanCell &&
+                presentationLabelMode_ == PresentationLabelMode::SystemObjects
+            ) {
+                ImGui::TextColored(
+                    MUTED,
+                    "Cell membrane, cytoplasm, nucleus, chromatin, "
+                    "mitochondria, ER, ribosomes and Golgi."
+                );
+            }
+            else if (
+                activePresentationSubject_ == PresentationSubject::Anatomy &&
+                presentationLabelMode_ == PresentationLabelMode::SystemObjects
+            ) {
+                ImGui::TextColored(
+                    MUTED,
+                    "Four chambers, four valves, great vessels, lungs, and "
+                    "the cardiac conduction pathway."
+                );
+            }
+            else if (
+                activePresentationSubject_ == PresentationSubject::SolarSystem &&
+                presentationLabelMode_ == PresentationLabelMode::SystemObjects
+            ) {
                 ImGui::TextColored(
                     MUTED,
                     "Sun, eight planets, Pluto the dwarf planet; Moon tucked away."
                 );
             }
-
-            ImGui::Spacing();
-            ImGui::TextColored(CYAN, "Scene contents");
-            ImGui::TextWrapped(
-                "Sun, eight planets, one example moon, and Pluto, a dwarf planet. "
-                "Sizes, distances, and orbit speeds are illustrative."
-            );
-            ImGui::TextColored(CYAN, "Planets");
-            ImGui::TextWrapped(
-                "Mercury  Venus  Earth  Mars  Jupiter  Saturn  Uranus  Neptune"
-            );
-
-            ImGui::Spacing();
-            if (solarSystemLesson_.hasGravityExplanation()) {
-                ImGui::TextWrapped(
-                    "Gravity layer: arrows point inward toward the Sun. "
-                    "The solar system remains visible underneath."
-                );
-            }
-            else {
+            else if (
+                activePresentationSubject_ == PresentationSubject::AdditionalLesson &&
+                presentationLabelMode_ == PresentationLabelMode::SystemObjects
+            ) {
                 ImGui::TextColored(
                     MUTED,
-                    "Waiting for the gravity explanation."
+                    "Labels identify the main parts and processes in this diagram."
                 );
+            }
+
+            if (
+                activePresentationSubject_ == PresentationSubject::HumanCell
+            ) {
+                ImGui::Spacing();
+                ImGui::TextColored(CYAN, "Scene contents");
+                ImGui::TextWrapped(
+                    "A simplified animal cell with one plasma-membrane outline, "
+                    "cytoplasm, a nucleus with chromatin and nucleolus, two "
+                    "mitochondria, folded endoplasmic reticulum, ribosomes and "
+                    "a compact Golgi stack. Vesicles move slowly nearby."
+                );
+            }
+            else if (
+                activePresentationSubject_ == PresentationSubject::Anatomy
+            ) {
+                ImGui::Spacing();
+                ImGui::TextColored(CYAN, "Scene contents");
+                ImGui::TextWrapped(
+                    "Anterior heart cutaway: right and left atria, right and "
+                    "left ventricles, the four one-way valves, venae cavae, "
+                    "pulmonary vessels, lungs, aortic arch, and conduction "
+                    "pathway."
+                );
+                ImGui::TextColored(CYAN, "Blood-flow sequence");
+                ImGui::TextWrapped(
+                    "Body → venae cavae → right atrium → tricuspid valve → "
+                    "right ventricle → pulmonary arteries → lungs → pulmonary "
+                    "veins → left atrium → mitral valve → left ventricle → "
+                    "aortic valve → aorta → body."
+                );
+                ImGui::TextWrapped(
+                    "Blue: lower-oxygen blood. Red: oxygenated blood. The "
+                    "ECG and chamber highlights illustrate diastole, atrial "
+                    "systole, ventricular ejection, and relaxation. Schematic, "
+                    "not to scale."
+                );
+            }
+            else if (
+                activePresentationSubject_ == PresentationSubject::AdditionalLesson
+            ) {
+                ImGui::Spacing();
+                ImGui::TextColored(CYAN, "Scene contents");
+                ImGui::TextWrapped("%s", testLesson_.getDescription());
+            }
+            else {
+                ImGui::Spacing();
+                ImGui::TextColored(CYAN, "Scene contents");
+                ImGui::TextWrapped(
+                    "Sun, eight planets, one example moon, and Pluto, a dwarf "
+                    "planet. Sizes, distances, and orbit speeds are illustrative."
+                );
+                ImGui::TextColored(CYAN, "Planets");
+                ImGui::TextWrapped(
+                    "Mercury  Venus  Earth  Mars  Jupiter  Saturn  Uranus  Neptune"
+                );
+
+                ImGui::Spacing();
+                if (solarSystemLesson_.hasGravityExplanation()) {
+                    ImGui::TextWrapped(
+                        "Gravity layer: arrows point inward toward the Sun. "
+                        "The solar system remains visible underneath."
+                    );
+                }
+                else {
+                    ImGui::TextColored(
+                        MUTED,
+                        "Waiting for the gravity explanation."
+                    );
+                }
             }
         }
 
         ImGui::Spacing();
         if (ImGui::Button("Clear presentation", ImVec2(-1.0f, 34.0f))) {
             solarSystemLesson_.clear();
+            biologyLesson_.clear();
+            anatomyLesson_.clear();
+            testLesson_.clear();
+            activePresentationSubject_ = PresentationSubject::None;
+            testLessonExampleIndex_ = 0;
             lessonTranscript_.fill('\0');
-            presentationCameraDistance_.reset();
-            presentationCameraTarget_.reset();
-            presentationCameraAngles_.reset();
-            if (const auto objectId =
-                    scene_.findObjectByKey("lesson/solar-system")) {
-                commandQueue_.enqueue(RemoveSceneObjectCommand{*objectId});
+            for (const char* layerKey : {
+                PRESENTATION_KEY,
+                SOLAR_SYSTEM_KEY,
+                HUMAN_CELL_KEY,
+                ANATOMY_KEY
+            }) {
+                if (const auto objectId = scene_.findObjectByKey(layerKey)) {
+                    commandQueue_.enqueue(RemoveSceneObjectCommand{*objectId});
+                }
             }
 
             if (const auto infinityObjectId =

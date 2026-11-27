@@ -673,6 +673,21 @@ namespace chionia {
 
     }
 
+    bool SolarSystemLesson::recognizesTranscript(
+        std::string_view transcript
+    ) const {
+        const std::string text = lowercase(transcript);
+        const bool introducesSolarSystem =
+            text.find("solar system") != std::string::npos &&
+            text.find("sun") != std::string::npos &&
+            text.find("orbit") != std::string::npos;
+        const bool addsGravityExplanation = solarSystemVisible_ &&
+            text.find("gravity") != std::string::npos &&
+            (text.find("orbit") != std::string::npos ||
+             text.find("planet") != std::string::npos);
+        return introducesSolarSystem || addsGravityExplanation;
+    }
+
     bool SolarSystemLesson::applyTranscript(std::string_view transcript) {
         const std::string text = lowercase(transcript);
         bool changed = false;
@@ -832,11 +847,11 @@ namespace chionia {
         return framedCloud;
     }
 
-    std::array<SolarSystemLessonLabel, 11> SolarSystemLesson::getLabels(
+    std::array<LessonLabel, 11> SolarSystemLesson::getLabels(
         float elapsedTime
     ) const {
         elapsedTime = std::max(0.0f, elapsedTime);
-        std::array<SolarSystemLessonLabel, 11> labels{};
+        std::array<LessonLabel, 11> labels{};
         labels[0] = {
             "Sun",
             framePosition(glm::vec3(0.0f, ORBIT_PLANE_HEIGHT, 0.0f)),
