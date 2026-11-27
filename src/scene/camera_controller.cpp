@@ -45,6 +45,27 @@ namespace chionia {
         applyCameraTransform();
     }
 
+glm::vec2 CameraController::getOrbitAngles() const {
+    return glm::vec2(horizontalAngle_, verticalAngle_);
+}
+
+void CameraController::setOrbitAngles(const glm::vec2& angles) {
+    const float fullRotation = glm::two_pi<float>();
+    horizontalAngle_ = std::fmod(angles.x, fullRotation);
+    if (horizontalAngle_ < 0.0f) {
+        horizontalAngle_ += fullRotation;
+    }
+    verticalAngle_ = glm::clamp(
+        angles.y,
+        -glm::radians(89.0f),
+        glm::radians(89.0f)
+    );
+    cinematicBaseHorizontalAngle_ = horizontalAngle_;
+    cinematicBaseVerticalAngle_ = verticalAngle_;
+    cinematicPhase_ = 0.0f;
+    applyCameraTransform();
+}
+
     void CameraController::shiftOrbitTargetHorizontally(
         float screenPixels,
         float viewportHeight

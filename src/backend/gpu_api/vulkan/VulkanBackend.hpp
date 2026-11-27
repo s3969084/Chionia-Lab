@@ -28,6 +28,7 @@
 
 // --- Standard Library ---
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -91,6 +92,8 @@ namespace chionia {
             return window_.getGLFWwindow();
         }
 
+        void setOrbitElapsedTime(float elapsedTime);
+
     private:
 
         static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
@@ -137,9 +140,11 @@ namespace chionia {
         // --- Active Point Data ---
         std::vector<Vertex> activeVertices;
         std::vector<Vertex> pendingVertices;
+        std::size_t morphTargetVertexCount_ = 0;
 
         // Pending core PointCloud update.
         std::optional<PointCloud> pendingPointCloud_;
+        bool pendingPointCloudInstant_ = false;
 
         std::mutex vertexUpdateMutex_;
         bool vertexUpdatePending_ = false;
@@ -178,7 +183,7 @@ namespace chionia {
         bool morphActive_ = false;
         float morphDurationSeconds_ = 2.0f;
         float morphProgress_ = 1.0f;
-        std::chrono::steady_clock::time_point orbitalAnimationStartTime_;
+        float orbitElapsedTime_ = 0.0f;
         bool hasOrbitalAnimation_ = false;
     };
 

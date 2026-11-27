@@ -237,10 +237,10 @@ namespace chionia {
         return bindingDescription;
     }
 
-    std::array<VkVertexInputAttributeDescription, 13>
+    std::array<VkVertexInputAttributeDescription, 14>
     VulkanVertexBuffer::getAttributeDescriptions() {
 
-        std::array<VkVertexInputAttributeDescription, 13> attributes{};
+        std::array<VkVertexInputAttributeDescription, 14> attributes{};
 
         // Attribute 0: Particle ID.
         attributes[0].binding = 0;
@@ -265,6 +265,12 @@ namespace chionia {
         attributes[3].location = 3;
         attributes[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
         attributes[3].offset = offsetof(Vertex, color);
+
+        // Attribute 13: Destination per-point colour for morph transitions.
+        attributes[13].binding = 0;
+        attributes[13].location = 13;
+        attributes[13].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        attributes[13].offset = offsetof(Vertex, targetColor);
 
         attributes[4].binding = 0;
         attributes[4].location = 4;

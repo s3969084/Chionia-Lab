@@ -13,6 +13,7 @@ namespace chionia {
     enum class RenderCommandType {
         UpdateVertices,
         UpdatePointCloud,
+        UpdatePointCloudInstant,
         SetModelMatrix,
         SetAnimationSpeed,
         SetMorphDuration,

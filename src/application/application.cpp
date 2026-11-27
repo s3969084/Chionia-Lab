@@ -419,6 +419,7 @@ namespace chionia {
     void Application::processSceneCommands() {
         bool activeObjectChanged = false;
         bool activeTransformChanged = false;
+        bool activeObjectChangeInstant = false;
 
         while (auto command = sceneCommandQueue_.tryDequeue()) {
             if (auto* upsert = std::get_if<UpsertPointCloudCommand>(&*command)) {
@@ -429,6 +430,7 @@ namespace chionia {
                     std::move(upsert->pointCloud)
                 );
                 activeObjectChanged = true;
+                activeObjectChangeInstant = upsert->instant;
 
                 if (autoMorphIndex) {
                     autoMorphShapeIndex_ = *autoMorphIndex;
@@ -473,6 +475,7 @@ namespace chionia {
                 if (scene_.findObject(selectObject->objectId) != nullptr) {
                     activeSceneObjectId_ = selectObject->objectId;
                     activeObjectChanged = true;
+                    activeObjectChangeInstant = selectObject->instant;
                 }
             }
             else if (
@@ -519,7 +522,7 @@ namespace chionia {
         }
 
         if (activeObjectChanged) {
-            queueActiveObjectForRendering();
+            queueActiveObjectForRendering(activeObjectChangeInstant);
         }
         else if (activeTransformChanged) {
             queueActiveObjectTransformForRendering();
@@ -543,7 +546,7 @@ namespace chionia {
         vk_.getRenderQueue().enqueue(std::move(transformCommand));
     }
 
-    void Application::queueActiveObjectForRendering() {
+    void Application::queueActiveObjectForRendering(bool instant) {
         PointCloud pointCloud;
         glm::mat4 modelMatrix(1.0f);
 
@@ -561,7 +564,9 @@ namespace chionia {
         }
 
         RenderCommand pointCloudCommand;
-        pointCloudCommand.type = RenderCommandType::UpdatePointCloud;
+        pointCloudCommand.type = instant
+            ? RenderCommandType::UpdatePointCloudInstant
+            : RenderCommandType::UpdatePointCloud;
         pointCloudCommand.data = std::move(pointCloud);
         vk_.getRenderQueue().enqueue(std::move(pointCloudCommand));
 
@@ -868,10 +873,6 @@ namespace chionia {
                     deltaTime,
                     !io.WantCaptureMouse && !io.WantCaptureKeyboard
                 );
-                updateObjectDrag(
-                    vk_.getWindow().getGLFWwindow(),
-                    io.WantCaptureMouse || io.WantCaptureKeyboard
-                );
 
                 editorPanel_.draw(
                     activeSceneObjectId_,
@@ -880,6 +881,14 @@ namespace chionia {
                     controller_
                 );
 
+                processSceneCommands();
+
+                const ImGuiIO& currentIo = ImGui::GetIO();
+                updateObjectDrag(
+                    vk_.getWindow().getGLFWwindow(),
+                    currentIo.WantCaptureMouse ||
+                        currentIo.WantCaptureKeyboard
+                );
                 processSceneCommands();
 
                 if (
@@ -911,6 +920,9 @@ namespace chionia {
                     }
                 }
 
+                vk_.setOrbitElapsedTime(
+                    static_cast<float>(ImGui::GetTime())
+                );
                 vk_.drawFrame(camera_);
 
                 std::this_thread::sleep_until(

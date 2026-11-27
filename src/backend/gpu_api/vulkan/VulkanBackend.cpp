@@ -18,6 +18,10 @@
 
 namespace chionia {
 
+void VulkanBackend::setOrbitElapsedTime(float elapsedTime) {
+    orbitElapsedTime_ = std::max(0.0f, elapsedTime);
+}
+
 // ------------------------------------------------------------
 // INITIALIZATION
 // ------------------------------------------------------------
@@ -33,8 +37,10 @@ void VulkanBackend::init(
     std::cout << "[Init] Starting Vulkan initialization...\n";
 
     activeVertices.clear();
+    morphTargetVertexCount_ = 0;
 
     animationStartTime_ = std::chrono::steady_clock::now();
+    orbitElapsedTime_ = 0.0f;
 
     morphActive_ = false;
     morphProgress_ = 1.0f;
@@ -374,12 +380,14 @@ void VulkanBackend::processRenderQueue() {
 
                 break;
 
-            case RenderCommandType::UpdatePointCloud: {
-
+            case RenderCommandType::UpdatePointCloud:
+            case RenderCommandType::UpdatePointCloudInstant: {
                 std::lock_guard<std::mutex> lock(vertexUpdateMutex_);
 
                 pendingPointCloud_ =
                     std::move(std::get<PointCloud>(cmd.data));
+                pendingPointCloudInstant_ =
+                    cmd.type == RenderCommandType::UpdatePointCloudInstant;
 
                 break;
             }
@@ -413,6 +421,9 @@ void VulkanBackend::processRenderQueue() {
                 if (!morphingEnabled_ && morphActive_) {
                     morphActive_ = false;
                     morphProgress_ = 1.0f;
+                    if (morphTargetVertexCount_ < activeVertices.size()) {
+                        activeVertices.resize(morphTargetVertexCount_);
+                    }
                 }
                 break;
 
@@ -465,7 +476,10 @@ void VulkanBackend::handleVertexUpdate() {
     const bool canMorph =
         morphingEnabled_ &&
         !activeVertices.empty() &&
-        activeVertices.size() == requestedVertices.size();
+        !requestedVertices.empty();
+    const std::size_t outputVertexCount = canMorph
+        ? std::max(activeVertices.size(), requestedVertices.size())
+        : requestedVertices.size();
 
     const auto now = std::chrono::steady_clock::now();
 
@@ -478,9 +492,6 @@ void VulkanBackend::handleVertexUpdate() {
                 std::abs(vertex.orbitMotion.spinAngularSpeed) > 0.0001f;
         }
     );
-    if (requestedHasOrbitalAnimation && !hasOrbitalAnimation_) {
-        orbitalAnimationStartTime_ = now;
-    }
     hasOrbitalAnimation_ = requestedHasOrbitalAnimation;
 
     float currentProgress = 1.0f;
@@ -504,28 +515,43 @@ void VulkanBackend::handleVertexUpdate() {
         (3.0f - 2.0f * currentProgress);
 
     std::vector<Vertex> newVertices;
-    newVertices.reserve(requestedVertices.size());
+    newVertices.reserve(outputVertexCount);
 
     for (
         std::size_t i = 0;
-        i < requestedVertices.size();
+        i < outputVertexCount;
         ++i
     ) {
 
-        const glm::vec3 targetPosition =
-            requestedVertices[i].targetPosition;
+        const std::size_t targetIndex = i < requestedVertices.size()
+            ? i
+            : (i * requestedVertices.size()) / outputVertexCount;
+        const Vertex& targetVertex = requestedVertices[targetIndex];
+        const glm::vec3 targetPosition = targetVertex.targetPosition;
 
         glm::vec3 currentPosition = targetPosition;
+        glm::vec4 currentColor = targetVertex.color;
 
         if (canMorph) {
 
-            const Vertex& oldVertex = activeVertices[i];
+            const std::size_t oldIndex = i < activeVertices.size()
+                ? i
+                : (i * activeVertices.size()) / outputVertexCount;
+            const Vertex& oldVertex = activeVertices[oldIndex];
 
             currentPosition = glm::mix(
                 oldVertex.position,
                 oldVertex.targetPosition,
                 easedProgress
             );
+            currentColor = glm::mix(
+                oldVertex.color,
+                oldVertex.targetColor,
+                easedProgress
+            );
+            if (i >= activeVertices.size()) {
+                currentColor.a = 0.0f;
+            }
         }
 
         Vertex vertex;
@@ -533,8 +559,12 @@ void VulkanBackend::handleVertexUpdate() {
         vertex.id = static_cast<uint32_t>(i);
         vertex.position = currentPosition;
         vertex.targetPosition = targetPosition;
-        vertex.color = requestedVertices[i].color;
-        vertex.orbitMotion = requestedVertices[i].orbitMotion;
+        vertex.color = currentColor;
+        vertex.targetColor = targetVertex.targetColor;
+        if (i >= requestedVertices.size()) {
+            vertex.targetColor.a = 0.0f;
+        }
+        vertex.orbitMotion = targetVertex.orbitMotion;
 
         newVertices.push_back(vertex);
     }
@@ -548,6 +578,7 @@ void VulkanBackend::handleVertexUpdate() {
     );
 
     activeVertices = std::move(newVertices);
+    morphTargetVertexCount_ = requestedVertices.size();
 
     const bool hasParticleData =
         !activeVertices.empty() &&
@@ -596,6 +627,7 @@ void VulkanBackend::handleVertexUpdate() {
 void VulkanBackend::handlePointCloudUpdate() {
 
     std::optional<PointCloud> requestedPointCloud;
+    bool instantUpdate = false;
 
     {
         std::lock_guard<std::mutex> lock(vertexUpdateMutex_);
@@ -606,6 +638,8 @@ void VulkanBackend::handlePointCloudUpdate() {
 
         requestedPointCloud = std::move(pendingPointCloud_);
         pendingPointCloud_.reset();
+        instantUpdate = pendingPointCloudInstant_;
+        pendingPointCloudInstant_ = false;
     }
 
     const std::size_t pointCount =
@@ -626,9 +660,13 @@ void VulkanBackend::handlePointCloudUpdate() {
         );
 
     const bool canMorph =
+        !instantUpdate &&
         morphingEnabled_ &&
         !activeVertices.empty() &&
-        activeVertices.size() == requestedVertices.size();
+        !requestedVertices.empty();
+    const std::size_t outputVertexCount = canMorph
+        ? std::max(activeVertices.size(), requestedVertices.size())
+        : requestedVertices.size();
 
     const auto now = std::chrono::steady_clock::now();
 
@@ -641,9 +679,6 @@ void VulkanBackend::handlePointCloudUpdate() {
                 std::abs(vertex.orbitMotion.spinAngularSpeed) > 0.0001f;
         }
     );
-    if (requestedHasOrbitalAnimation && !hasOrbitalAnimation_) {
-        orbitalAnimationStartTime_ = now;
-    }
     hasOrbitalAnimation_ = requestedHasOrbitalAnimation;
 
     float currentProgress = 1.0f;
@@ -667,28 +702,43 @@ void VulkanBackend::handlePointCloudUpdate() {
         (3.0f - 2.0f * currentProgress);
 
     std::vector<Vertex> newVertices;
-    newVertices.reserve(requestedVertices.size());
+    newVertices.reserve(outputVertexCount);
 
     for (
         std::size_t i = 0;
-        i < requestedVertices.size();
+        i < outputVertexCount;
         ++i
     ) {
 
-        const glm::vec3 targetPosition =
-            requestedVertices[i].targetPosition;
+        const std::size_t targetIndex = i < requestedVertices.size()
+            ? i
+            : (i * requestedVertices.size()) / outputVertexCount;
+        const Vertex& targetVertex = requestedVertices[targetIndex];
+        const glm::vec3 targetPosition = targetVertex.targetPosition;
 
         glm::vec3 currentPosition = targetPosition;
+        glm::vec4 currentColor = targetVertex.color;
 
         if (canMorph) {
 
-            const Vertex& oldVertex = activeVertices[i];
+            const std::size_t oldIndex = i < activeVertices.size()
+                ? i
+                : (i * activeVertices.size()) / outputVertexCount;
+            const Vertex& oldVertex = activeVertices[oldIndex];
 
             currentPosition = glm::mix(
                 oldVertex.position,
                 oldVertex.targetPosition,
                 easedProgress
             );
+            currentColor = glm::mix(
+                oldVertex.color,
+                oldVertex.targetColor,
+                easedProgress
+            );
+            if (i >= activeVertices.size()) {
+                currentColor.a = 0.0f;
+            }
         }
 
         Vertex vertex;
@@ -696,8 +746,12 @@ void VulkanBackend::handlePointCloudUpdate() {
         vertex.id = static_cast<uint32_t>(i);
         vertex.position = currentPosition;
         vertex.targetPosition = targetPosition;
-        vertex.color = requestedVertices[i].color;
-        vertex.orbitMotion = requestedVertices[i].orbitMotion;
+        vertex.color = currentColor;
+        vertex.targetColor = targetVertex.targetColor;
+        if (i >= requestedVertices.size()) {
+            vertex.targetColor.a = 0.0f;
+        }
+        vertex.orbitMotion = targetVertex.orbitMotion;
 
         newVertices.push_back(vertex);
     }
@@ -725,6 +779,7 @@ void VulkanBackend::handlePointCloudUpdate() {
     );
 
     activeVertices = std::move(newVertices);
+    morphTargetVertexCount_ = pointCount;
 
     const bool hasPointData =
         !activeVertices.empty() &&
@@ -919,6 +974,9 @@ void VulkanBackend::updateUniforms(
 
             morphProgress_ = 1.0f;
             morphActive_ = false;
+            if (morphTargetVertexCount_ < activeVertices.size()) {
+                activeVertices.resize(morphTargetVertexCount_);
+            }
 
             std::cout
                 << "[Morph] Transition complete.\n";
@@ -930,9 +988,7 @@ void VulkanBackend::updateUniforms(
         1.0f,
         energyEffectsEnabled_ ? 1.0f : 0.0f,
         hasOrbitalAnimation_
-            ? std::chrono::duration<float>(
-                now - orbitalAnimationStartTime_
-            ).count() * animationSpeed_
+            ? orbitElapsedTime_ * animationSpeed_
             : 0.0f
     );
 

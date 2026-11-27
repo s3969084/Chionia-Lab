@@ -22,6 +22,8 @@ namespace chionia {
         void setOrbitRadius(float radius);
         glm::vec3 getOrbitTarget() const;
         void setOrbitTarget(const glm::vec3& target);
+        glm::vec2 getOrbitAngles() const;
+        void setOrbitAngles(const glm::vec2& angles);
         void shiftOrbitTargetHorizontally(float screenPixels, float viewportHeight);
         void setCinematicOrbit(bool enabled);
 

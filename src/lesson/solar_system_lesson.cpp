@@ -673,10 +673,7 @@ namespace chionia {
 
     }
 
-    bool SolarSystemLesson::applyTranscript(
-        std::string_view transcript,
-        float elapsedTime
-    ) {
+    bool SolarSystemLesson::applyTranscript(std::string_view transcript) {
         const std::string text = lowercase(transcript);
         bool changed = false;
 
@@ -686,7 +683,6 @@ namespace chionia {
             text.find("orbit") != std::string::npos &&
             !solarSystemVisible_
         ) {
-            sceneStartTime_ = elapsedTime;
             solarSystemVisible_ = true;
             changed = true;
         }
@@ -708,7 +704,6 @@ namespace chionia {
     void SolarSystemLesson::clear() {
         solarSystemVisible_ = false;
         gravityExplanationVisible_ = false;
-        sceneStartTime_ = 0.0f;
     }
 
     bool SolarSystemLesson::hasSolarSystem() const {
@@ -840,7 +835,7 @@ namespace chionia {
     std::array<SolarSystemLessonLabel, 11> SolarSystemLesson::getLabels(
         float elapsedTime
     ) const {
-        elapsedTime = std::max(0.0f, elapsedTime - sceneStartTime_);
+        elapsedTime = std::max(0.0f, elapsedTime);
         std::array<SolarSystemLessonLabel, 11> labels{};
         labels[0] = {
             "Sun",

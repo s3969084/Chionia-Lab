@@ -17,10 +17,7 @@ namespace chionia {
     // feed finalized speech segments into applyTranscript() later.
     class SolarSystemLesson {
     public:
-        bool applyTranscript(
-            std::string_view transcript,
-            float elapsedTime = 0.0f
-        );
+        bool applyTranscript(std::string_view transcript);
 
         void clear();
 
@@ -35,7 +32,6 @@ namespace chionia {
     private:
         bool solarSystemVisible_ = false;
         bool gravityExplanationVisible_ = false;
-        float sceneStartTime_ = 0.0f;
     };
 
 }

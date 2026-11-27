@@ -169,16 +169,60 @@ namespace chionia {
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         const ImVec2 size = viewport->Size;
 
-        drawBackground(size.x, size.y, activeObjectId, camera);
         const Tab previousTab = activeTab_;
         drawTopBar(size.x);
-        if (previousTab != Tab::Presentation && activeTab_ == Tab::Presentation) {
-            enterPresentationMode(cameraController, size.y);
+        const bool tabChanged = previousTab != activeTab_;
+        const bool returnToInfinity = returnToInfinityAfterClear_;
+        const std::optional<SceneObjectId> savedVisualizationObject =
+            visualizationObjectBeforePresentation_;
+        if (tabChanged) {
+            if (activeTab_ == Tab::Presentation) {
+                enterPresentationMode(
+                    activeObjectId,
+                    cameraController,
+                    size.y
+                );
+            }
+            else if (previousTab == Tab::Presentation) {
+                restorePresentationView(cameraController);
+            }
         }
-        drawSidebar(size.y, activeObjectId, loadShape, cameraController);
-        drawFooter(size.x, size.y, activeObjectId);
-        if (solarSystemLesson_.hasSolarSystem()) {
-            drawLessonAnnotations(size.x, size.y, activeObjectId, camera);
+
+        std::optional<SceneObjectId> displayedObjectId = activeObjectId;
+        if (activeTab_ == Tab::Presentation) {
+            displayedObjectId = scene_.findObjectByKey("lesson/solar-system");
+        }
+        else if (previousTab == Tab::Presentation && tabChanged) {
+            displayedObjectId = returnToInfinity
+                ? scene_.findObjectByKey("procedural/infinity")
+                : savedVisualizationObject;
+            if (
+                !displayedObjectId ||
+                scene_.findObject(*displayedObjectId) == nullptr
+            ) {
+                displayedObjectId.reset();
+                if (!returnToInfinity) {
+                    for (const SceneObjectId objectId : scene_.getObjectIds()) {
+                        const SceneObject* object = scene_.findObject(objectId);
+                        if (
+                            object != nullptr &&
+                            object->getKey() != "lesson/solar-system"
+                        ) {
+                            displayedObjectId = objectId;
+                        }
+                    }
+                }
+            }
+        }
+
+        drawBackground(size.x, size.y, displayedObjectId, camera);
+        drawSidebar(size.y, displayedObjectId, loadShape, cameraController);
+        drawFooter(size.x, size.y, displayedObjectId);
+        if (
+            activeTab_ == Tab::Presentation &&
+            solarSystemLesson_.hasSolarSystem()
+        ) {
+            drawLessonAnnotations(size.x, size.y, displayedObjectId, camera);
         }
     }
 
@@ -444,10 +488,12 @@ namespace chionia {
             true
         );
         glm::mat4 model(1.0f);
+        float animationSpeed = 1.0f;
         if (activeObjectId) {
             const SceneObject* object = scene_.findObject(*activeObjectId);
             if (object != nullptr && object->getKey() == "lesson/solar-system") {
                 model = object->getTransform().getModelMatrix();
+                animationSpeed = object->getAnimationSpeed();
             }
         }
 
@@ -458,7 +504,7 @@ namespace chionia {
         std::vector<AnnotationRect> occupiedLabels;
 
         for (const SolarSystemLessonLabel& label : solarSystemLesson_.getLabels(
-            static_cast<float>(ImGui::GetTime())
+            static_cast<float>(ImGui::GetTime()) * animationSpeed
         )) {
             if (presentationLabelMode_ == PresentationLabelMode::Hidden) {
                 continue;
@@ -704,14 +750,19 @@ namespace chionia {
     }
 
     void EditorPanel::enterPresentationMode(
+        std::optional<SceneObjectId> activeObjectId,
         CameraController& cameraController,
         float viewportHeight
     ) {
-        if (
-            solarSystemLesson_.hasSolarSystem() ||
-            scene_.findObjectByKey("lesson/solar-system")
-        ) {
-            return;
+        constexpr const char* PRESENTATION_KEY = "lesson/solar-system";
+        if (activeObjectId) {
+            const SceneObject* activeObject = scene_.findObject(*activeObjectId);
+            if (
+                activeObject != nullptr &&
+                activeObject->getKey() != PRESENTATION_KEY
+            ) {
+                visualizationObjectBeforePresentation_ = *activeObjectId;
+            }
         }
 
         if (!settingsBeforeLesson_) {
@@ -719,6 +770,7 @@ namespace chionia {
             cameraDistanceBeforeLesson_ =
                 cameraController.getTargetOrbitRadius();
             cameraTargetBeforeLesson_ = cameraController.getOrbitTarget();
+            cameraAnglesBeforeLesson_ = cameraController.getOrbitAngles();
         }
 
         SceneRenderSettings settings = scene_.getRenderSettings();
@@ -730,23 +782,129 @@ namespace chionia {
         settings.energyEffectsEnabled = true;
         commandQueue_.enqueue(SetSceneRenderSettingsCommand{settings});
 
-        cameraController.setOrbitRadius(3.3f);
-        cameraController.shiftOrbitTargetHorizontally(
-            144.0f,
-            viewportHeight
-        );
-        InfinityGeneratorConfig presentationInfinityConfig = infinityConfig_;
-        presentationInfinityConfig.pointCount = MORPH_PARTICLE_COUNT;
-        commandQueue_.enqueue(
-            UpsertPointCloudCommand{
-                "lesson/solar-system",
-                InfinityGenerator::generate(presentationInfinityConfig)
-            }
-        );
+        if (
+            presentationCameraDistance_ &&
+            presentationCameraTarget_ &&
+            presentationCameraAngles_
+        ) {
+            cameraController.setOrbitAngles(*presentationCameraAngles_);
+            cameraController.setOrbitTarget(*presentationCameraTarget_);
+            cameraController.setOrbitRadius(*presentationCameraDistance_);
+        }
+        else {
+            cameraController.setOrbitTarget(glm::vec3(0.0f));
+            cameraController.setOrbitAngles(
+                glm::vec2(glm::radians(180.0f), 0.0f)
+            );
+            cameraController.setOrbitRadius(3.3f);
+            cameraController.shiftOrbitTargetHorizontally(
+                144.0f,
+                viewportHeight
+            );
+        }
 
+        if (const auto presentationId = scene_.findObjectByKey(PRESENTATION_KEY)) {
+            commandQueue_.enqueue(
+                SelectSceneObjectCommand{*presentationId, true}
+            );
+        }
+        else if (solarSystemLesson_.hasSolarSystem()) {
+            commandQueue_.enqueue(
+                UpsertPointCloudCommand{
+                    PRESENTATION_KEY,
+                    solarSystemLesson_.buildPointCloud(),
+                    true
+                }
+            );
+        }
+        else {
+            InfinityGeneratorConfig presentationInfinityConfig = infinityConfig_;
+            presentationInfinityConfig.pointCount = MORPH_PARTICLE_COUNT;
+            commandQueue_.enqueue(
+                UpsertPointCloudCommand{
+                    PRESENTATION_KEY,
+                    InfinityGenerator::generate(presentationInfinityConfig),
+                    true
+                }
+            );
+            lessonFeedback_ =
+                "Infinity is ready. Apply spoken text to build the presentation.";
+        }
+
+        cameraController.setCinematicOrbit(
+            cinematicCameraEnabled_ && solarSystemLesson_.hasSolarSystem()
+        );
+    }
+
+    void EditorPanel::restorePresentationView(
+        CameraController& cameraController,
+        bool selectVisualizationObject
+    ) {
         cameraController.setCinematicOrbit(false);
-        lessonFeedback_ =
-            "Infinity is ready. Apply spoken text to build the presentation.";
+        if (selectVisualizationObject && solarSystemLesson_.hasSolarSystem()) {
+            presentationCameraDistance_ =
+                cameraController.getTargetOrbitRadius();
+            presentationCameraTarget_ = cameraController.getOrbitTarget();
+            presentationCameraAngles_ = cameraController.getOrbitAngles();
+        }
+        if (settingsBeforeLesson_) {
+            commandQueue_.enqueue(
+                SetSceneRenderSettingsCommand{*settingsBeforeLesson_}
+            );
+            settingsBeforeLesson_.reset();
+        }
+
+        if (cameraTargetBeforeLesson_) {
+            cameraController.setOrbitTarget(*cameraTargetBeforeLesson_);
+            cameraTargetBeforeLesson_.reset();
+        }
+        if (cameraAnglesBeforeLesson_) {
+            cameraController.setOrbitAngles(*cameraAnglesBeforeLesson_);
+            cameraAnglesBeforeLesson_.reset();
+        }
+        if (cameraDistanceBeforeLesson_) {
+            cameraController.setOrbitRadius(*cameraDistanceBeforeLesson_);
+            cameraDistanceBeforeLesson_.reset();
+        }
+
+        if (selectVisualizationObject) {
+            std::optional<SceneObjectId> visualizationObjectId;
+            if (returnToInfinityAfterClear_) {
+                visualizationObjectId =
+                    scene_.findObjectByKey("procedural/infinity");
+            }
+            else {
+                visualizationObjectId =
+                    visualizationObjectBeforePresentation_;
+            }
+            if (
+                !visualizationObjectId ||
+                scene_.findObject(*visualizationObjectId) == nullptr
+            ) {
+                visualizationObjectId.reset();
+                if (!returnToInfinityAfterClear_) {
+                    for (const SceneObjectId objectId : scene_.getObjectIds()) {
+                        const SceneObject* object = scene_.findObject(objectId);
+                        if (
+                            object != nullptr &&
+                            object->getKey() != "lesson/solar-system"
+                        ) {
+                            visualizationObjectId = objectId;
+                        }
+                    }
+                }
+            }
+
+            if (visualizationObjectId) {
+                commandQueue_.enqueue(
+                    SelectSceneObjectCommand{*visualizationObjectId, true}
+                );
+            }
+        }
+        visualizationObjectBeforePresentation_.reset();
+        if (selectVisualizationObject) {
+            returnToInfinityAfterClear_ = false;
+        }
     }
 
     void EditorPanel::drawSidebar(
@@ -1064,8 +1222,7 @@ namespace chionia {
 
         if (ImGui::Button("Build presentation", ImVec2(-1.0f, 36.0f))) {
             const bool changed = solarSystemLesson_.applyTranscript(
-                lessonTranscript_.data(),
-                static_cast<float>(ImGui::GetTime())
+                lessonTranscript_.data()
             );
 
             if (changed && solarSystemLesson_.hasSolarSystem()) {
@@ -1162,27 +1319,33 @@ namespace chionia {
         if (ImGui::Button("Clear presentation", ImVec2(-1.0f, 34.0f))) {
             solarSystemLesson_.clear();
             lessonTranscript_.fill('\0');
-            cameraController.setCinematicOrbit(false);
+            presentationCameraDistance_.reset();
+            presentationCameraTarget_.reset();
+            presentationCameraAngles_.reset();
             if (const auto objectId =
                     scene_.findObjectByKey("lesson/solar-system")) {
                 commandQueue_.enqueue(RemoveSceneObjectCommand{*objectId});
             }
-            if (settingsBeforeLesson_) {
+
+            if (const auto infinityObjectId =
+                    scene_.findObjectByKey("procedural/infinity")) {
                 commandQueue_.enqueue(
-                    SetSceneRenderSettingsCommand{*settingsBeforeLesson_}
+                    SelectSceneObjectCommand{*infinityObjectId}
                 );
-                settingsBeforeLesson_.reset();
             }
-            if (cameraDistanceBeforeLesson_) {
-                cameraController.setOrbitRadius(*cameraDistanceBeforeLesson_);
-                cameraDistanceBeforeLesson_.reset();
+            else {
+                commandQueue_.enqueue(
+                    UpsertPointCloudCommand{
+                        "procedural/infinity",
+                        InfinityGenerator::generate(infinityConfig_)
+                    }
+                );
             }
-            if (cameraTargetBeforeLesson_) {
-                cameraController.setOrbitTarget(*cameraTargetBeforeLesson_);
-                cameraTargetBeforeLesson_.reset();
-            }
+
+            restorePresentationView(cameraController, false);
+            returnToInfinityAfterClear_ = true;
             lessonFeedback_ =
-                "Presentation cleared. Ready for another passage.";
+                "Presentation cleared. Infinity is ready.";
         }
 
         ImGui::EndChild();

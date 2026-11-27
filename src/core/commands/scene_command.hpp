@@ -13,6 +13,7 @@ namespace chionia {
     struct UpsertPointCloudCommand {
         std::string key;
         PointCloud pointCloud;
+        bool instant = false;
     };
 
     struct SetSceneObjectTransformCommand {
@@ -27,6 +28,7 @@ namespace chionia {
 
     struct SelectSceneObjectCommand {
         SceneObjectId objectId = 0;
+        bool instant = false;
     };
 
     struct SetSceneRenderSettingsCommand {

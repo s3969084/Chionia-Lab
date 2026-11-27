@@ -43,7 +43,7 @@ namespace chionia {
 
         void processSceneCommands();
         void updateObjectDrag(GLFWwindow* window, bool inputCaptured);
-        void queueActiveObjectForRendering();
+        void queueActiveObjectForRendering(bool instant = false);
         void queueActiveObjectTransformForRendering();
         void queueRenderSettingsForRendering(
             const SceneRenderSettings& settings

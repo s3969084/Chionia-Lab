@@ -56,8 +56,13 @@ namespace chionia {
         );
         void drawTopBar(float width);
         void enterPresentationMode(
+            std::optional<SceneObjectId> activeObjectId,
             CameraController& cameraController,
             float viewportHeight
+        );
+        void restorePresentationView(
+            CameraController& cameraController,
+            bool selectVisualizationObject = true
         );
         void drawSidebar(
             float height,
@@ -98,6 +103,12 @@ namespace chionia {
         std::optional<SceneRenderSettings> settingsBeforeLesson_;
         std::optional<float> cameraDistanceBeforeLesson_;
         std::optional<glm::vec3> cameraTargetBeforeLesson_;
+        std::optional<glm::vec2> cameraAnglesBeforeLesson_;
+        std::optional<float> presentationCameraDistance_;
+        std::optional<glm::vec3> presentationCameraTarget_;
+        std::optional<glm::vec2> presentationCameraAngles_;
+        std::optional<SceneObjectId> visualizationObjectBeforePresentation_;
+        bool returnToInfinityAfterClear_ = false;
         PresentationLabelMode presentationLabelMode_ =
             PresentationLabelMode::SystemObjects;
         bool cinematicCameraEnabled_ = true;

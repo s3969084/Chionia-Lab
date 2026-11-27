@@ -56,6 +56,7 @@ namespace chionia {
             vertex.position = points[i].position;
             vertex.targetPosition = points[i].position;
             vertex.color = points[i].color;
+            vertex.targetColor = points[i].color;
             vertex.orbitMotion = points[i].orbitMotion;
 
             vertices.push_back(vertex);

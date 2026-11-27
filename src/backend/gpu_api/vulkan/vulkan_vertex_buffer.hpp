@@ -44,7 +44,7 @@ namespace chionia {
 
         static VkVertexInputBindingDescription getBindingDescription();
 
-        static std::array<VkVertexInputAttributeDescription, 13>
+        static std::array<VkVertexInputAttributeDescription, 14>
         getAttributeDescriptions();
 
     private:

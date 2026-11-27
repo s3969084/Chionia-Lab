@@ -14,6 +14,7 @@ layout(location = 9) in float inSecondaryOrbitAngularSpeed;
 layout(location = 10) in vec3 inSpinCenter;
 layout(location = 11) in vec3 inSpinAxis;
 layout(location = 12) in float inSpinAngularSpeed;
+layout(location = 13) in vec4 inTargetPointColor;
 
 layout(location = 0) flat out float outPulse;
 layout(location = 1) flat out float outTrailAngle;
@@ -22,6 +23,8 @@ layout(location = 3) flat out float outReflection;
 layout(location = 4) flat out float outReflectionStrength;
 layout(location = 5) flat out vec4 outPointColor;
 layout(location = 6) flat out float outEnergyEffectsEnabled;
+layout(location = 7) flat out float outSunBody;
+layout(location = 8) flat out float outSolarOcclusion;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 model;
@@ -217,6 +220,29 @@ void main() {
         worldPosition.z += cos(ripplePhase * 0.8) * 0.006 * rippleWeight;
     }
 
+    float solarOcclusion = 0.0;
+    bool isOrbitingBody =
+        length(inSpinCenter) > 0.1 &&
+        abs(inOrbitAngularSpeed) > 0.0001;
+    if (isOrbitingBody) {
+        const float sunRadius = 0.29025;
+        vec4 sunViewPosition =
+            ubo.view * ubo.model * vec4(0.0, 0.0, 0.0, 1.0);
+        vec4 bodyViewPosition = ubo.view * worldPosition;
+        vec2 sunPlaneOffset = bodyViewPosition.xy - sunViewPosition.xy;
+        float sunPlaneDistanceSquared = dot(sunPlaneOffset, sunPlaneOffset);
+        if (sunPlaneDistanceSquared < sunRadius * sunRadius) {
+            float sunFrontDistance = -sunViewPosition.z - sqrt(
+                max(
+                    sunRadius * sunRadius - sunPlaneDistanceSquared,
+                    0.0
+                )
+            );
+            float bodyDistance = -bodyViewPosition.z;
+            solarOcclusion = bodyDistance < sunFrontDistance ? 1.0 : -1.0;
+        }
+    }
+
     gl_Position = ubo.projection * ubo.view * worldPosition;
     if (isReflection && !drawReflection) {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -225,8 +251,14 @@ void main() {
     outPalettePosition = energyEffectsEnabled > 0.5
         ? clamp(animatedPosition.x + 0.5, 0.0, 1.0)
         : 0.5;
-    outPointColor = inPointColor;
+    outPointColor = mix(inPointColor, inTargetPointColor, progress);
     outEnergyEffectsEnabled = energyEffectsEnabled;
+    outSunBody =
+        length(inSpinCenter) < 0.01 &&
+        abs(inSpinAngularSpeed) > 0.0001
+            ? 1.0
+            : 0.0;
+    outSolarOcclusion = solarOcclusion;
     outReflection = drawReflection ? 1.0 : 0.0;
     outReflectionStrength = drawReflection
         ? 0.38 *

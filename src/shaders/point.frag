@@ -8,6 +8,8 @@ layout(location = 3) flat in float inReflection;
 layout(location = 4) flat in float inReflectionStrength;
 layout(location = 5) flat in vec4 inPointColor;
 layout(location = 6) flat in float inEnergyEffectsEnabled;
+layout(location = 7) flat in float inSunBody;
+layout(location = 8) flat in float inSolarOcclusion;
 
 layout(location = 0) out vec4 outColor;
 
@@ -199,6 +201,16 @@ void main() {
         // The Vulkan particle pass is additive, so dense peaks accumulate
         // quickly. Leave headroom here to keep those cores saturated in color.
         finalColor *= 0.35;
+    }
+
+    // Keep the dense solar point cloud translucent enough for nearby planets
+    // to remain legible in the additive particle renderer.
+    finalColor *= mix(1.0, 0.58, inSunBody);
+    if (inSolarOcclusion > 0.5) {
+        finalColor *= 1.8;
+    }
+    else if (inSolarOcclusion < -0.5) {
+        finalColor *= 0.12;
     }
 
     // --------------------------------------------------
