@@ -232,6 +232,13 @@ void main() {
     alpha *= mix(1.0, inReflectionStrength, inReflection);
     alpha *= inPointColor.a;
 
+    // V4 renders twice as many samples at the original point footprint.
+    // RGB uses additive blending (which ignores source alpha), so reduce both
+    // outputs explicitly to keep brightness stable while increasing coverage.
+    const float DENSITY_BRIGHTNESS_COMPENSATION = 0.5;
+    finalColor *= DENSITY_BRIGHTNESS_COMPENSATION;
+    alpha *= DENSITY_BRIGHTNESS_COMPENSATION;
+
     outColor = vec4(
         finalColor,
         alpha

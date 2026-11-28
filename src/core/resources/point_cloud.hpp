@@ -13,7 +13,7 @@
 
 namespace chionia {
 
-    inline constexpr std::size_t MORPH_PARTICLE_COUNT = 192000;
+    inline constexpr std::size_t MORPH_PARTICLE_COUNT = 384000;
 
     using PointId = std::uint64_t;
 
@@ -56,6 +56,7 @@ namespace chionia {
         );
 
         void clear();
+        void reserve(std::size_t pointCapacity);
 
         const std::string& getName() const;
         const std::vector<PointCloudPoint>& getPoints() const;

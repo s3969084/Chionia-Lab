@@ -86,6 +86,7 @@ namespace chionia {
             int segments = 72,
             int sides = 10
         ) {
+            segments *= 2;
             for (int segment = 0; segment <= segments; ++segment) {
                 const float t = static_cast<float>(segment) /
                     static_cast<float>(segments);
@@ -184,6 +185,7 @@ namespace chionia {
             const glm::vec4& startColor,
             const glm::vec4& endColor
         ) {
+            pointCount *= 2;
             for (std::size_t index = 0; index < pointCount; ++index) {
                 const glm::vec3 direction = sphereDirection(index, pointCount);
                 const float variation = 0.5f + 0.5f * std::sin(
@@ -204,6 +206,7 @@ namespace chionia {
             std::size_t shellCount,
             std::size_t lumenCount
         ) {
+            lumenCount *= 2;
             const glm::vec4 thinWall(
                 MYOCARDIUM.r,
                 MYOCARDIUM.g,
@@ -248,7 +251,7 @@ namespace chionia {
             const glm::vec3& center,
             const glm::vec3& outerRadii
         ) {
-            constexpr std::size_t WALL_POINTS = 2400;
+            constexpr std::size_t WALL_POINTS = 4800;
             const glm::vec4 muscleColor(0.95f, 0.34f, 0.43f, 0.46f);
             for (std::size_t index = 0; index < WALL_POINTS; ++index) {
                 const glm::vec3 direction = sphereDirection(index, WALL_POINTS);
@@ -270,7 +273,7 @@ namespace chionia {
             float radius,
             int leafletCount = 3
         ) {
-            constexpr int RING_POINTS = 96;
+            constexpr int RING_POINTS = 192;
             for (int index = 0; index < RING_POINTS; ++index) {
                 const float angle = 2.0f * PI *
                     static_cast<float>(index) /
@@ -323,7 +326,7 @@ namespace chionia {
             // Sparse alveolar-capillary marks keep the lungs a supporting
             // exchange site instead of another large opaque surface.
             constexpr int BRANCHES = 10;
-            constexpr int SAMPLES = 28;
+            constexpr int SAMPLES = 56;
             for (int branch = 0; branch < BRANCHES; ++branch) {
                 const float phase = 2.0f * PI *
                     static_cast<float>(branch) /
@@ -509,6 +512,7 @@ namespace chionia {
 
     PointCloud AnatomyLesson::buildPointCloud() const {
         PointCloud cloud("Heart and Cardiac Cycle");
+        cloud.reserve(MORPH_PARTICLE_COUNT);
         if (!heartCycleVisible_) {
             return cloud;
         }

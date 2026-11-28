@@ -1,0 +1,78 @@
+CHIONIA LAB PROPRIETARY NON-COMMERCIAL EVALUATION LICENSE
+STATUS: DRAFT — confirm ownership and contributor authority before publishing
+Copyright © 2026 Angelos Christou. All rights reserved except for the limited
+permission below.
+
+This license applies only to the Original Materials for which the applicable
+copyright owner has authority to grant these terms. "Licensor" means Angelos
+Christou, solely as to the rights he owns or controls in those materials.
+
+1. Definitions
+
+"Original Materials" means the parts of this repository created for Chionia
+Lab and owned or controlled by Licensor, including project source code,
+shaders, original documentation, original lesson text, original visual assets,
+and original shape or scene data. It does not include Third-Party Materials.
+
+"Third-Party Materials" means software, assets, data, or other material that
+Licensor did not create or does not control, including dependencies, SDKs,
+fonts, and material identified by a separate copyright or license notice.
+Third-Party Materials remain subject to their own terms. This license does not
+change those terms.
+
+"Commercial Use" means use of Original Materials in or for a commercial
+product, service, paid activity, or internal business purpose. It includes
+use by or on behalf of a for-profit organization, use in client or consulting
+work, monetization or advertising, providing hosted access, and bundling,
+distributing, or incorporating the materials into something offered for a
+fee or other commercial benefit.
+
+2. Limited evaluation permission
+
+Subject to these terms, Licensor grants you a limited, revocable, non-exclusive,
+non-transferable permission to download, run, inspect, and locally modify the
+Original Materials solely for personal, non-commercial evaluation, learning,
+or non-commercial teaching. You may not publish or distribute copies or
+modified versions of Original Materials under this permission.
+
+3. Commercial use requires a separate paid license
+
+This license grants no permission for Commercial Use. Before any Commercial
+Use begins, you must obtain a separate written license signed by the applicable
+Licensor(s). That agreement must define the permitted use and its fee, and any
+required fee must be paid as specified in that agreement. A request, discussion,
+invoice, or use of the repository does not itself create a commercial license.
+
+4. Restrictions and termination
+
+You may not sublicense, sell, rent, publish, distribute, or make the Original
+Materials available to others, except for the limited local evaluation
+permission in Section 2. You may not remove copyright or license notices.
+Any permission under this license ends automatically if you breach these
+terms. After termination, you must stop using the Original Materials and
+delete copies in your possession, except where applicable law requires
+retention.
+
+5. Rights retained
+
+Licensor retains all rights in the Original Materials not expressly granted
+here. No patent, trademark, branding, or other intellectual-property rights
+are granted. Chionia Lab names and logos may not be used to suggest endorsement
+or affiliation without separate written permission.
+
+6. No warranty
+
+To the maximum extent permitted by law, the Original Materials are provided
+"as is" and without warranties or conditions of any kind. Licensor will not be
+liable for claims or damages arising from use of the Original Materials, to the
+maximum extent permitted by law.
+
+7. Questions and commercial licensing
+
+Contact the repository owner through the GitHub repository to request a
+commercial license. No commercial permission exists until a separate written
+agreement is signed by the applicable rightsholder(s).
+
+This license does not limit rights that cannot legally be limited. If a term
+is unenforceable, the remaining terms continue to apply to the extent allowed
+by law.

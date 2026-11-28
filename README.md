@@ -2,6 +2,12 @@
 
 Chionia Lab is a Vulkan point-cloud shape viewer. It includes a shape library, animated morphing, particle vibration, a ground guide with a moving light, and an optional floor reflection.
 
+## Licensing
+
+The [draft Chionia Lab Proprietary Non-Commercial Evaluation License](LICENSE) describes the intended terms: non-commercial evaluation is allowed, while commercial use requires a separate written license with the applicable rightsholder(s) and payment of the agreed fee before use begins. Confirm ownership and contributor authority before treating it as an active license offer. Third-party dependencies and materials remain under their own licenses. See [commercial licensing notes](docs/COMMERCIAL_LICENSING.md) for details.
+
+If adopted, this policy would make the project source-available rather than open-source under the Open Source Definition, because it restricts commercial use.
+
 ## Requirements
 
 - Git

@@ -71,6 +71,10 @@ namespace chionia {
         ++revision_;
     }
 
+    void PointCloud::reserve(std::size_t pointCapacity) {
+        points_.reserve(pointCapacity);
+    }
+
     const std::string& PointCloud::getName() const {
         return name_;
     }

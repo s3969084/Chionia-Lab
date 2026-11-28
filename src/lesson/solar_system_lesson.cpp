@@ -528,6 +528,7 @@ namespace chionia {
             SurfaceStyle style = SurfaceStyle::Moon,
             const glm::vec3& lightDirection = glm::vec3(0.0f, 0.0f, 1.0f)
         ) {
+            pointCount *= 2;
             const glm::vec3 spinAxis = glm::normalize(motion.spinAxis);
             for (std::size_t i = 0; i < pointCount; ++i) {
                 const float fraction =
@@ -567,6 +568,7 @@ namespace chionia {
             const glm::vec4& color,
             std::size_t pointCount = 5760
         ) {
+            pointCount *= 2;
             for (std::size_t i = 0; i < pointCount; ++i) {
                 const float angle =
                     2.0f * PI * static_cast<float>(i) /
@@ -580,7 +582,7 @@ namespace chionia {
             const glm::vec3& center,
             const PointOrbitMotion& motion
         ) {
-            constexpr std::size_t POINTS_PER_RING = 4800;
+            constexpr std::size_t POINTS_PER_RING = 9600;
             const std::array<float, 4> radii = {
                 0.069f, 0.076f, 0.083f, 0.090f
             };
@@ -629,8 +631,8 @@ namespace chionia {
                 const glm::vec3 planetCenter = planetPosition(planet, 0.0f);
                 const PointOrbitMotion motion = orbitAroundSun(planet.orbitalSpeed);
                 const glm::vec3 direction = glm::normalize(sunCenter - planetCenter);
-                for (int step = 0; step <= 112; ++step) {
-                    const float t = static_cast<float>(step) / 112.0f;
+                for (int step = 0; step <= 224; ++step) {
+                    const float t = static_cast<float>(step) / 224.0f;
                     cloud.addPoint(
                         glm::mix(planetCenter, sunCenter, t),
                         fieldColor,
@@ -645,8 +647,8 @@ namespace chionia {
                 const glm::vec3 perpendicular(-direction.y, direction.x, 0.0f);
                 const glm::vec3 left = base + perpendicular * 0.045f;
                 const glm::vec3 right = base - perpendicular * 0.045f;
-                for (int step = 0; step <= 32; ++step) {
-                    const float t = static_cast<float>(step) / 32.0f;
+                for (int step = 0; step <= 64; ++step) {
+                    const float t = static_cast<float>(step) / 64.0f;
                     cloud.addPoint(glm::mix(tip, left, t), fieldColor, 1.0f, {}, motion);
                     cloud.addPoint(glm::mix(tip, right, t), fieldColor, 1.0f, {}, motion);
                 }
@@ -731,6 +733,7 @@ namespace chionia {
 
     PointCloud SolarSystemLesson::buildPointCloud() const {
         PointCloud cloud("Solar System Presentation");
+        cloud.reserve(LESSON_POINT_COUNT);
         if (!solarSystemVisible_) {
             return cloud;
         }
@@ -835,6 +838,7 @@ namespace chionia {
         }
 
         PointCloud framedCloud("Solar System Presentation");
+        framedCloud.reserve(cloud.getPointCount());
         for (const PointCloudPoint& point : cloud.getPoints()) {
             framedCloud.addPoint(
                 framePosition(point.position),

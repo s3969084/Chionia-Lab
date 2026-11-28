@@ -56,7 +56,7 @@ namespace chionia {
         void addPlasmaMembrane(PointCloud& cloud) {
             // One complete, thin plasma-membrane boundary. The cell interior
             // stays visible through the point-cloud renderer's additive pass.
-            constexpr std::size_t POINTS = 19000;
+            constexpr std::size_t POINTS = 38000;
             for (std::size_t index = 0; index < POINTS; ++index) {
                 const glm::vec3 direction = sphereDirection(index, POINTS);
                 const float variation = 0.5f + 0.5f * std::sin(
@@ -80,7 +80,7 @@ namespace chionia {
             // stable particle count but are transparent black anchors.
             const std::size_t visibleCount = std::min<std::size_t>(
                 pointCount,
-                18000
+                36000
             );
             std::size_t added = 0;
             for (std::size_t index = 0; added < visibleCount; ++index) {
@@ -91,7 +91,7 @@ namespace chionia {
                 const float radius = 0.93f * std::cbrt(volumeFraction);
                 const glm::vec3 direction = sphereDirection(
                     index,
-                    visibleCount * 2
+                    visibleCount
                 );
                 const glm::vec3 position = ellipsoidPoint(
                     direction * radius,
@@ -133,7 +133,7 @@ namespace chionia {
         void addNucleus(PointCloud& cloud) {
             // A single visible nuclear boundary represents the nuclear
             // envelope without drawing two bright concentric membranes.
-            constexpr std::size_t ENVELOPE_POINTS = 6400;
+            constexpr std::size_t ENVELOPE_POINTS = 12800;
             for (std::size_t index = 0; index < ENVELOPE_POINTS; ++index) {
                 const glm::vec3 direction = sphereDirection(
                     index,
@@ -157,7 +157,7 @@ namespace chionia {
                 );
             }
 
-            constexpr std::size_t NUCLEOLUS_POINTS = 1050;
+            constexpr std::size_t NUCLEOLUS_POINTS = 2100;
             const glm::vec3 nucleolusCenter = NUCLEUS_CENTER +
                 glm::vec3(-0.075f, 0.025f, 0.045f);
             constexpr glm::vec3 NUCLEOLUS_RADII(0.062f, 0.052f, 0.050f);
@@ -181,7 +181,7 @@ namespace chionia {
             // Interphase DNA is represented as compact, irregular chromatin
             // threads inside the nucleus, rather than a giant naked helix.
             constexpr int THREADS = 4;
-            constexpr int STEPS = 360;
+            constexpr int STEPS = 720;
             for (int thread = 0; thread < THREADS; ++thread) {
                 const float phase = static_cast<float>(thread) * 1.71f;
                 for (int step = 0; step < STEPS; ++step) {
@@ -224,7 +224,7 @@ namespace chionia {
             float angle
         ) {
             // Oval outer profile plus a few folded inner-membrane cristae.
-            constexpr std::size_t OUTER_POINTS = 1180;
+            constexpr std::size_t OUTER_POINTS = 2360;
             constexpr glm::vec3 RADII(0.13f, 0.073f, 0.056f);
             for (std::size_t index = 0; index < OUTER_POINTS; ++index) {
                 const glm::vec3 direction = sphereDirection(
@@ -247,7 +247,7 @@ namespace chionia {
             }
 
             constexpr int CRISTAE = 4;
-            constexpr int STEPS = 90;
+            constexpr int STEPS = 180;
             for (int fold = 0; fold < CRISTAE; ++fold) {
                 const float baseOffset =
                     (static_cast<float>(fold) - 1.5f) * 0.024f;
@@ -266,27 +266,26 @@ namespace chionia {
         }
 
         void addEndoplasmicReticulum(PointCloud& cloud) {
-            // Three open, folded cisternae sit beside the nucleus. They read
-            // as ER folds rather than complete orbital rings or extra shells.
+            // A compact, open ER sheet sits beside the nucleus. Its first
+            // fold meets the nuclear envelope; the short horizontal cisternae
+            // avoid reading as extra concentric membranes around the cell.
             constexpr int FOLDS = 3;
-            constexpr int STEPS = 250;
+            constexpr int STEPS = 500;
             for (int fold = 0; fold < FOLDS; ++fold) {
-                const float radiusX = 0.31f +
-                    static_cast<float>(fold) * 0.042f;
-                const float radiusY = 0.265f +
-                    static_cast<float>(fold) * 0.036f;
                 for (int step = 0; step < STEPS; ++step) {
                     const float fraction = static_cast<float>(step) /
                         static_cast<float>(STEPS - 1);
-                    const float angle =
-                        (-0.61f + 1.22f * fraction) * PI;
-                    const float ripple = 0.012f *
-                        std::sin(fraction * 6.0f * PI + fold * 0.8f);
+                    const float direction = fold % 2 == 0
+                        ? fraction
+                        : 1.0f - fraction;
+                    const float baseY = 0.27f -
+                        static_cast<float>(fold) * 0.105f;
                     const glm::vec3 position(
-                        NUCLEUS_CENTER.x + std::cos(angle) * radiusX,
-                        NUCLEUS_CENTER.y +
-                            std::sin(angle) * (radiusY + ripple),
-                        0.025f + static_cast<float>(fold) * 0.025f
+                        0.22f + direction * 0.36f,
+                        baseY + 0.018f * std::sin(
+                            fraction * 4.0f * PI + fold * 0.55f
+                        ),
+                        0.055f + static_cast<float>(fold) * 0.012f
                     );
                     cloud.addPoint(
                         position,
@@ -296,15 +295,26 @@ namespace chionia {
                     );
                 }
             }
+
+            // Continuity with the nuclear envelope is shown by one connector.
+            for (int step = 0; step <= 100; ++step) {
+                const float t = static_cast<float>(step) / 100.0f;
+                const glm::vec3 position = glm::mix(
+                    NUCLEUS_CENTER + glm::vec3(0.25f, 0.15f, 0.035f),
+                    glm::vec3(0.22f, 0.27f, 0.055f),
+                    t
+                );
+                cloud.addPoint(position, glm::vec4(0.055f, 0.30f, 0.48f, 0.72f));
+            }
         }
 
         void addRibosomes(PointCloud& cloud) {
             // Ribosomes are tiny free dots and dots attached to the rough ER.
-            constexpr std::size_t FREE_RIBOSOMES = 900;
+            constexpr std::size_t FREE_RIBOSOMES = 1800;
             for (std::size_t index = 0; index < FREE_RIBOSOMES; ++index) {
                 const glm::vec3 direction = sphereDirection(
                     index,
-                    FREE_RIBOSOMES * 2
+                    FREE_RIBOSOMES
                 );
                 const float radialFraction = std::fmod(
                     static_cast<float>(index) * 0.754877666f + 0.17f,
@@ -327,18 +337,18 @@ namespace chionia {
                 );
             }
 
-            constexpr int ER_BOUND_RIBOSOMES = 220;
+            constexpr int ER_BOUND_RIBOSOMES = 440;
             for (int index = 0; index < ER_BOUND_RIBOSOMES; ++index) {
-                const float fraction = static_cast<float>(index) /
-                    static_cast<float>(ER_BOUND_RIBOSOMES - 1);
-                const float angle = (-0.61f + 1.22f * fraction) * PI;
-                const float radiusX = 0.31f;
-                const float radiusY = 0.265f +
-                    0.012f * std::sin(fraction * 6.0f * PI);
+                const int fold = index % 2;
+                const float fraction = static_cast<float>(index / 2) / 219.0f;
+                const float direction = fold == 0 ? fraction : 1.0f - fraction;
+                const float baseY = 0.27f - static_cast<float>(fold) * 0.105f;
                 const glm::vec3 position(
-                    NUCLEUS_CENTER.x + std::cos(angle) * radiusX,
-                    NUCLEUS_CENTER.y + std::sin(angle) * radiusY,
-                    0.046f
+                    0.22f + direction * 0.36f,
+                    baseY + 0.018f * std::sin(
+                        fraction * 4.0f * PI + fold * 0.55f
+                    ),
+                    0.062f + static_cast<float>(fold) * 0.012f
                 );
                 cloud.addPoint(
                     position,
@@ -351,7 +361,7 @@ namespace chionia {
             // A compact stack of flattened Golgi cisternae, spaced apart so
             // each sac is distinct instead of a dense tangle of loops.
             constexpr int STACKS = 4;
-            constexpr int STEPS = 240;
+            constexpr int STEPS = 480;
             for (int stack = 0; stack < STACKS; ++stack) {
                 const float layer = static_cast<float>(stack);
                 for (int step = 0; step < STEPS; ++step) {
@@ -388,7 +398,7 @@ namespace chionia {
                 {{-0.53f, 0.08f, 0.12f}, 0.046f, 5.20f, -0.25f},
                 {{0.10f, -0.42f, -0.10f}, 0.045f, 3.00f, 0.20f}
             }};
-            constexpr std::size_t POINTS_PER_VESICLE = 18;
+            constexpr std::size_t POINTS_PER_VESICLE = 36;
 
             for (std::size_t trackIndex = 0; trackIndex < TRACKS.size(); ++trackIndex) {
                 const VesicleTrack& track = TRACKS[trackIndex];
@@ -460,6 +470,7 @@ namespace chionia {
 
     PointCloud BiologyLesson::buildPointCloud() const {
         PointCloud cloud("Typical Animal Cell");
+        cloud.reserve(MORPH_PARTICLE_COUNT);
         if (!humanCellVisible_) {
             return cloud;
         }
@@ -475,7 +486,7 @@ namespace chionia {
         );
         addMitochondrion(
             cloud,
-            glm::vec3(0.39f, 0.25f, -0.035f),
+            glm::vec3(0.43f, -0.29f, -0.035f),
             -0.54f
         );
         addGolgiApparatus(cloud);
@@ -497,7 +508,7 @@ namespace chionia {
             {"Nucleus", NUCLEUS_CENTER, {0.66f, 0.30f, 0.88f, 1.0f}},
             {"Chromatin (DNA)", NUCLEUS_CENTER + glm::vec3(0.19f, 0.11f, 0.06f), {0.86f, 0.52f, 0.94f, 1.0f}},
             {"Mitochondria", glm::vec3(-0.40f, -0.25f, 0.045f), {1.0f, 0.62f, 0.20f, 1.0f}},
-            {"Endoplasmic reticulum", glm::vec3(0.39f, 0.02f, 0.08f), {0.24f, 0.66f, 0.96f, 1.0f}},
+            {"Endoplasmic reticulum", glm::vec3(0.43f, 0.17f, 0.08f), {0.24f, 0.66f, 0.96f, 1.0f}},
             {"Ribosomes", glm::vec3(0.17f, 0.31f, 0.05f), {0.96f, 0.46f, 0.54f, 1.0f}},
             {"Golgi apparatus", glm::vec3(0.30f, -0.37f, 0.15f), {0.98f, 0.46f, 0.76f, 1.0f}}
         }};

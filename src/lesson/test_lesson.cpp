@@ -11,6 +11,7 @@ namespace chionia {
 
         constexpr float PI = 3.14159265359f;
         constexpr float GOLDEN_ANGLE = 2.39996322973f;
+        constexpr float DETAIL_DENSITY_SCALE = 1.41421356237f;
 
         const glm::vec4 CYAN(0.10f, 0.78f, 1.0f, 0.95f);
         const glm::vec4 BLUE(0.12f, 0.42f, 0.98f, 0.92f);
@@ -41,6 +42,7 @@ namespace chionia {
             int samples = 72,
             float pointSize = 1.0f
         ) {
+            samples *= 2;
             for (int index = 0; index <= samples; ++index) {
                 const float t = static_cast<float>(index) /
                     static_cast<float>(samples);
@@ -57,6 +59,7 @@ namespace chionia {
             int samples = 64,
             int sides = 7
         ) {
+            samples *= 2;
             const glm::vec3 tangent = glm::normalize(end - start);
             const glm::vec3 reference =
                 std::abs(glm::dot(tangent, glm::vec3(0.0f, 0.0f, 1.0f))) > 0.9f
@@ -79,7 +82,7 @@ namespace chionia {
                     cloud.addPoint(center + offset, color);
                 }
             }
-            addSegment(cloud, start, end, color, samples, 0.9f);
+            addSegment(cloud, start, end, color, samples / 2, 0.9f);
         }
 
         void addPolyline(
@@ -168,6 +171,7 @@ namespace chionia {
             const glm::vec4& color,
             std::size_t points = 1600
         ) {
+            points *= 2;
             for (std::size_t index = 0; index < points; ++index) {
                 const glm::vec3 direction = sphereDirection(index, points);
                 const float variation = 0.88f + 0.12f *
@@ -200,6 +204,8 @@ namespace chionia {
             int xSteps = 28,
             int ySteps = 18
         ) {
+            xSteps = static_cast<int>(std::ceil(xSteps * DETAIL_DENSITY_SCALE));
+            ySteps = static_cast<int>(std::ceil(ySteps * DETAIL_DENSITY_SCALE));
             for (int row = 0; row <= ySteps; ++row) {
                 const float v = static_cast<float>(row) /
                     static_cast<float>(ySteps);
@@ -227,6 +233,7 @@ namespace chionia {
             const glm::vec4& color,
             int steps = 28
         ) {
+            steps = static_cast<int>(std::ceil(steps * DETAIL_DENSITY_SCALE));
             for (int row = 0; row <= steps; ++row) {
                 const float v = static_cast<float>(row) /
                     static_cast<float>(steps);
@@ -248,6 +255,7 @@ namespace chionia {
             const glm::vec4& color,
             int points = 220
         ) {
+            points *= 2;
             for (int index = 0; index < points; ++index) {
                 const float angle = 2.0f * PI * static_cast<float>(index) /
                     static_cast<float>(points);
@@ -276,6 +284,49 @@ namespace chionia {
                 center.z + radius * 0.24f,
                 glm::vec4(glm::vec3(color), 0.70f),
                 280
+            );
+        }
+
+        void addFish(
+            PointCloud& cloud,
+            const glm::vec3& center,
+            float length,
+            float height,
+            const glm::vec4& color
+        ) {
+            addSphere(
+                cloud,
+                center,
+                glm::vec3(length * 0.39f, height * 0.34f, height * 0.20f),
+                color,
+                1400
+            );
+            const float z = center.z + 0.02f;
+            const glm::vec3 tailBase(center.x - length * 0.30f, center.y, z);
+            addPolyline(
+                cloud,
+                {tailBase,
+                 glm::vec3(center.x - length * 0.51f, center.y + height * 0.34f, z),
+                 glm::vec3(center.x - length * 0.48f, center.y, z),
+                 glm::vec3(center.x - length * 0.51f, center.y - height * 0.34f, z),
+                 tailBase},
+                color,
+                20
+            );
+            addPolyline(
+                cloud,
+                {glm::vec3(center.x - length * 0.08f, center.y + height * 0.22f, z + 0.005f),
+                 glm::vec3(center.x + length * 0.08f, center.y + height * 0.45f, z + 0.005f),
+                 glm::vec3(center.x + length * 0.16f, center.y + height * 0.12f, z + 0.005f)},
+                PALE,
+                14
+            );
+            addSphere(
+                cloud,
+                glm::vec3(center.x + length * 0.22f, center.y + height * 0.08f, z + 0.02f),
+                0.012f,
+                PALE,
+                80
             );
         }
 
@@ -372,8 +423,10 @@ namespace chionia {
             addSegment(cloud, {right - 0.11f, 0.11f, 0.10f}, {right + 0.11f, -0.11f, 0.10f}, PALE, 24);
             addSphere(cloud, {right, 0.0f, 0.02f}, 0.075f, glm::vec4(1.0f, 0.80f, 0.28f, 0.72f), 420);
 
-            addArrow(cloud, {-0.30f, 0.30f, 0.09f}, {0.13f, 0.30f, 0.09f}, CYAN, 0.08f);
-            addArrow(cloud, {0.61f, -0.35f, 0.09f}, {0.22f, -0.35f, 0.09f}, PALE, 0.075f);
+            // Conventional current and electron drift share the same wire
+            // segment and point in opposite directions.
+            addArrow(cloud, {0.43f, 0.64f, 0.10f}, {0.78f, 0.64f, 0.10f}, CYAN, 0.065f);
+            addArrow(cloud, {0.78f, 0.46f, 0.10f}, {0.43f, 0.46f, 0.10f}, PALE, 0.065f);
         }
 
         void buildCarbonAtom(PointCloud& cloud) {
@@ -460,15 +513,18 @@ namespace chionia {
             addArrow(cloud, {-0.58f, -0.43f, 0.12f}, {-0.36f, 0.46f, 0.12f}, CYAN, 0.09f);
             addArrow(cloud, {0.50f, 0.53f, 0.12f}, {0.72f, -0.18f, 0.12f}, BLUE, 0.085f);
             addArrow(cloud, {0.87f, -0.42f, 0.12f}, {0.30f, -0.48f, 0.12f}, CYAN, 0.08f);
+            addArrow(cloud, {1.03f, -0.05f, 0.13f}, {0.88f, 0.45f, 0.13f}, GREEN, 0.07f);
+            addArrow(cloud, {0.78f, -0.36f, 0.13f}, {0.78f, -0.69f, 0.13f}, BLUE, 0.065f);
             addBezierLine(
                 cloud,
-                {-0.14f, -0.78f, 0.06f},
-                {0.14f, -0.91f, 0.06f},
-                {0.57f, -0.83f, 0.06f},
                 {0.96f, -0.61f, 0.06f},
+                {0.57f, -0.83f, 0.06f},
+                {0.14f, -0.91f, 0.06f},
+                {-0.14f, -0.78f, 0.06f},
                 glm::vec4(0.20f, 0.68f, 0.94f, 0.76f),
                 64
             );
+            addArrow(cloud, {0.26f, -0.83f, 0.13f}, {-0.02f, -0.80f, 0.13f}, BLUE, 0.06f);
         }
 
         void buildPlateBoundaries(PointCloud& cloud) {
@@ -480,11 +536,9 @@ namespace chionia {
             // Divergent ridge: plates move apart and magma rises to make crust.
             addGridPatch(cloud, -1.36f, -0.10f, -0.92f, 0.14f, 0.0f, ocean, 24, 10);
             addGridPatch(cloud, -0.50f, -0.10f, -0.08f, 0.14f, 0.0f, ocean, 20, 10);
-            addTube(cloud, {-0.54f, 0.14f, 0.08f}, {-0.47f, 0.22f, 0.08f}, 0.018f, GOLD, 24, 5);
-            addTube(cloud, {-0.08f, 0.14f, 0.08f}, {-0.15f, 0.22f, 0.08f}, 0.018f, GOLD, 24, 5);
-            addArrow(cloud, {-0.73f, 0.29f, 0.10f}, {-1.02f, 0.29f, 0.10f}, CYAN, 0.06f);
-            addArrow(cloud, {-0.29f, 0.29f, 0.10f}, {0.00f, 0.29f, 0.10f}, CYAN, 0.06f);
-            addArrow(cloud, {-0.31f, -0.28f, 0.08f}, {-0.31f, 0.10f, 0.08f}, RED, 0.06f);
+            addTube(cloud, {-0.71f, -0.30f, 0.08f}, {-0.71f, 0.18f, 0.08f}, 0.018f, GOLD, 48, 6);
+            addArrow(cloud, {-0.71f, 0.29f, 0.10f}, {-1.02f, 0.29f, 0.10f}, CYAN, 0.06f);
+            addArrow(cloud, {-0.71f, 0.29f, 0.10f}, {-0.40f, 0.29f, 0.10f}, CYAN, 0.06f);
 
             // Convergent oceanic-continental boundary with one subducting plate.
             addGridPatch(cloud, 0.10f, -0.10f, 0.61f, 0.14f, 0.0f, crust, 24, 10);
@@ -495,6 +549,7 @@ namespace chionia {
                 ocean,
                 34
             );
+            addArrow(cloud, {-0.27f, 0.25f, 0.10f}, {0.06f, 0.25f, 0.10f}, CYAN, 0.055f);
             addTube(cloud, {0.10f, 0.14f, 0.08f}, {0.10f, -0.07f, 0.08f}, 0.018f, PALE, 26, 5);
             addArrow(cloud, {0.46f, 0.28f, 0.10f}, {0.10f, 0.28f, 0.10f}, CYAN, 0.06f);
             addPolyline(
@@ -524,8 +579,8 @@ namespace chionia {
             addSphere(cloud, sun, 0.12f, GOLD, 1200);
             addCircleNode(cloud, producers, 0.20f, GREEN);
             addCircleNode(cloud, zooplankton, 0.17f, glm::vec4(0.30f, 0.79f, 0.94f, 0.9f));
-            addCircleNode(cloud, smallFish, 0.18f, glm::vec4(0.94f, 0.67f, 0.24f, 0.92f));
-            addCircleNode(cloud, largeFish, 0.24f, glm::vec4(0.98f, 0.35f, 0.26f, 0.94f));
+            addFish(cloud, smallFish, 0.38f, 0.19f, glm::vec4(0.94f, 0.67f, 0.24f, 0.92f));
+            addFish(cloud, largeFish, 0.49f, 0.24f, glm::vec4(0.98f, 0.35f, 0.26f, 0.94f));
             addCircleNode(cloud, decomposers, 0.15f, glm::vec4(0.72f, 0.43f, 0.90f, 0.88f));
 
             addArrow(cloud, {-0.08f, 0.77f, 0.12f}, {-0.66f, 0.49f, 0.12f}, GOLD, 0.075f);
@@ -547,10 +602,10 @@ namespace chionia {
             const glm::vec4 sideC(1.0f, 0.66f, 0.19f, 0.95f);
 
             // Right triangle is drawn at exact 3:4:5 proportions.
-            for (int row = 0; row <= 34; ++row) {
-                const float v = static_cast<float>(row) / 34.0f;
-                for (int column = 0; column <= 34; ++column) {
-                    const float u = static_cast<float>(column) / 34.0f;
+            for (int row = 0; row <= 48; ++row) {
+                const float v = static_cast<float>(row) / 48.0f;
+                for (int column = 0; column <= 48; ++column) {
+                    const float u = static_cast<float>(column) / 48.0f;
                     if (u + v <= 1.001f) {
                         cloud.addPoint(
                             a + (b - a) * u + (c - a) * v,
@@ -776,7 +831,7 @@ namespace chionia {
             case TestLessonTopic::WaterCycle:
                 return "SOLAR ENERGY AND GRAVITY MOVE WATER BETWEEN RESERVOIRS";
             case TestLessonTopic::PlateBoundaries:
-                return "DIVERGENT  /  CONVERGENT  /  TRANSFORM  ·  CROSS SECTIONS SIMPLIFIED";
+                return "DIVERGENT  /  CONVERGENT  /  TRANSFORM  ·  SCHEMATICS NOT TO SCALE";
             case TestLessonTopic::MarineFoodWeb:
                 return "ARROWS SHOW ENERGY FLOW FROM FOOD TO CONSUMER";
             case TestLessonTopic::PythagoreanTheorem:
@@ -797,7 +852,7 @@ namespace chionia {
             case TestLessonTopic::WaterCycle:
                 return "Ocean, sunlight, evaporation, condensation, clouds, precipitation, runoff, plant transpiration, and a groundwater path. The arrows illustrate major transfers, not quantities or scale.";
             case TestLessonTopic::PlateBoundaries:
-                return "Three simplified cross-sections: new crust forms at a divergent ridge, oceanic lithosphere subducts at an oceanic-continental convergent boundary, and crust slides along a transform boundary.";
+                return "Two simplified cross-sections and one plan view: plates move apart and create crust at a divergent ridge, oceanic lithosphere subducts beneath continental crust at a convergent boundary, and crust slides laterally along a transform fault. Not to scale.";
             case TestLessonTopic::MarineFoodWeb:
                 return "A simplified marine web links sunlight, phytoplankton, zooplankton, fish, and decomposers. Arrows point from food to consumer; nutrients recycle, while energy flows through and leaves as heat.";
             case TestLessonTopic::PythagoreanTheorem:
@@ -832,6 +887,7 @@ namespace chionia {
 
     PointCloud TestLesson::buildPointCloud() const {
         PointCloud cloud(getTitle());
+        cloud.reserve(MORPH_PARTICLE_COUNT);
         switch (topic_) {
             case TestLessonTopic::ElectricCircuit:
                 buildCircuit(cloud);
@@ -868,15 +924,13 @@ namespace chionia {
                     {"Battery", {-1.03f, 0.27f, 0.11f}, {1.0f, 0.75f, 0.25f, 1.0f}},
                     {"Resistor", {0.0f, 0.78f, 0.12f}, {1.0f, 0.75f, 0.25f, 1.0f}},
                     {"Lamp / load", {1.12f, 0.08f, 0.16f}, {1.0f, 0.75f, 0.25f, 1.0f}},
-                    {"Conventional current", {-0.18f, 0.19f, 0.12f}, {0.18f, 0.78f, 1.0f, 1.0f}},
-                    {"Electron drift", {0.37f, -0.47f, 0.12f}, {0.69f, 0.88f, 1.0f, 1.0f}}
+                    {"Conventional current", {0.60f, 0.76f, 0.12f}, {0.18f, 0.78f, 1.0f, 1.0f}},
+                    {"Electron drift", {0.60f, 0.34f, 0.12f}, {0.69f, 0.88f, 1.0f, 1.0f}}
                 };
             case TestLessonTopic::CarbonAtom:
                 return {
-                    {"Carbon-12 nucleus", {-0.02f, 0.10f, 0.28f}, {0.90f, 0.46f, 0.91f, 1.0f}},
-                    {"Protons (+)", {-0.17f, 0.25f, 0.12f}, {1.0f, 0.38f, 0.38f, 1.0f}},
-                    {"Neutrons (0)", {0.18f, -0.13f, 0.12f}, {0.78f, 0.88f, 0.98f, 1.0f}},
-                    {"Six electrons", {0.74f, 0.43f, 0.12f}, {0.20f, 0.83f, 1.0f, 1.0f}},
+                    {"Nucleus: 6p + 6n", {-0.02f, 0.10f, 0.28f}, {0.90f, 0.46f, 0.91f, 1.0f}},
+                    {"Six electrons", {0.86f, 0.71f, 0.12f}, {0.20f, 0.83f, 1.0f, 1.0f}},
                     {"2 | 4 shell occupancy", {-0.72f, -0.76f, 0.12f}, {0.44f, 0.71f, 0.88f, 1.0f}}
                 };
             case TestLessonTopic::WaterCycle:

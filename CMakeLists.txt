@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-project(Chionia_Lab VERSION 0.1 LANGUAGES CXX)
+project(Chionia_Lab VERSION 0.1.0 LANGUAGES CXX)
 
 # ============================================================
 # Project configuration
@@ -74,6 +74,10 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
 
 add_executable(Chionia_Lab ${SOURCES}
         src/scene/shapes/shape_sampling_config.hpp)
+
+target_compile_definitions(Chionia_Lab PRIVATE
+        CHIONIA_VERSION="${PROJECT_VERSION}"
+)
 
 target_include_directories(Chionia_Lab PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"

@@ -50,27 +50,27 @@ namespace chionia {
                 CYCLE_SECONDS
             ) / CYCLE_SECONDS;
 
-            if (phase < 0.20f) {
-                return {CardiacPhase::Diastole, phase / 0.20f,
+            if (phase < 0.50f) {
+                return {CardiacPhase::Diastole, phase / 0.50f,
                     "DIASTOLE  ·  passive ventricular filling"};
             }
-            if (phase < 0.32f) {
+            if (phase < 0.60f) {
                 return {CardiacPhase::AtrialSystole,
-                    (phase - 0.20f) / 0.12f,
+                    (phase - 0.50f) / 0.10f,
                     "ATRIAL SYSTOLE  ·  final filling"};
             }
-            if (phase < 0.68f) {
+            if (phase < 0.90f) {
                 return {CardiacPhase::VentricularSystole,
-                    (phase - 0.32f) / 0.36f,
+                    (phase - 0.60f) / 0.30f,
                     "VENTRICULAR SYSTOLE  ·  blood ejected"};
             }
-            if (phase < 0.82f) {
+            if (phase < 1.0f) {
                 return {CardiacPhase::Relaxation,
-                    (phase - 0.68f) / 0.14f,
-                    "RELAXATION  ·  semilunar valves close"};
+                    (phase - 0.90f) / 0.10f,
+                    "ISOVOLUMETRIC RELAXATION  ·  valves reset"};
             }
-            return {CardiacPhase::Diastole, (phase - 0.82f) / 0.18f,
-                "DIASTOLE  ·  filling begins again"};
+            return {CardiacPhase::Diastole, 0.0f,
+                "DIASTOLE  ·  passive ventricular filling"};
         }
 
         float ecgWaveform(float phase) {
@@ -83,6 +83,36 @@ namespace chionia {
                 0.78f * gaussian(phase, 0.332f, 0.008f) -
                 0.22f * gaussian(phase, 0.351f, 0.012f) +
                 0.31f * gaussian(phase, 0.735f, 0.050f);
+        }
+
+        void drawMicrophoneIcon(ImDrawList* drawList, const ImVec2& center) {
+            constexpr ImU32 ICON_COLOR = IM_COL32(82, 171, 202, 190);
+            drawList->AddRectFilled(
+                ImVec2(center.x - 3.2f, center.y - 7.0f),
+                ImVec2(center.x + 3.2f, center.y + 3.0f),
+                ICON_COLOR,
+                3.2f
+            );
+            drawList->PathArcTo(
+                ImVec2(center.x, center.y + 0.5f),
+                7.0f,
+                0.0f,
+                3.14159265358979323846f,
+                16
+            );
+            drawList->PathStroke(ICON_COLOR, 0, 1.5f);
+            drawList->AddLine(
+                ImVec2(center.x, center.y + 7.5f),
+                ImVec2(center.x, center.y + 11.0f),
+                ICON_COLOR,
+                1.5f
+            );
+            drawList->AddLine(
+                ImVec2(center.x - 4.0f, center.y + 11.0f),
+                ImVec2(center.x + 4.0f, center.y + 11.0f),
+                ICON_COLOR,
+                1.5f
+            );
         }
 
         void drawCardiacCycleOverlay(
@@ -1678,11 +1708,11 @@ namespace chionia {
         ImGui::BeginChild("##LessonControls", ImVec2(0.0f, 0.0f), true);
         drawSectionTitle("Build from lesson text");
         ImGui::TextWrapped(
-            "Paste a short passage or choose one of ten temporary lessons "
-            "to preview a different subject-specific scene."
+            "Enter a lesson idea or paste a supported passage to create a "
+            "visual explanation."
         );
         ImGui::Spacing();
-        ImGui::TextColored(MUTED, "Temporary test presets");
+        ImGui::TextColored(MUTED, "Start with an example");
         constexpr std::array<const char*, 11> TEST_EXAMPLES = {{
             "Choose an example...",
             "Solar system  /  astronomy",
@@ -1699,8 +1729,8 @@ namespace chionia {
         constexpr std::array<const char*, 11> TEST_TRANSCRIPTS = {{
             "",
             "Our solar system consists of the Sun and eight planets that orbit "
-                "it. The planets follow elliptical paths around the Sun. Their "
-                "distances and sizes in this model are simplified.",
+                "it. Their paths are shown as near-circular for this model. "
+                "Distances, sizes, and orbital speeds are simplified.",
             "A typical human cell is enclosed by a plasma membrane. Its "
             "cytoplasm contains organelles, and its nucleus stores DNA as "
             "chromatin. Ribosomes build proteins, while mitochondria "
@@ -1819,6 +1849,61 @@ namespace chionia {
             ImVec2(-1.0f, 148.0f),
             ImGuiInputTextFlags_WordWrap
         );
+        const ImVec2 transcriptMinimum = ImGui::GetItemRectMin();
+        const ImVec2 transcriptMaximum = ImGui::GetItemRectMax();
+        const ImVec2 cursorAfterTranscript = ImGui::GetCursorScreenPos();
+        ImDrawList* promptDrawList = ImGui::GetWindowDrawList();
+        if (lessonTranscript_[0] == '\0' && !ImGui::IsItemActive()) {
+            promptDrawList->AddText(
+                ImVec2(transcriptMinimum.x + 11.0f, transcriptMinimum.y + 11.0f),
+                IM_COL32(113, 197, 222, 225),
+                "What would you like to teach?"
+            );
+            promptDrawList->AddText(
+                ImVec2(transcriptMinimum.x + 11.0f, transcriptMinimum.y + 33.0f),
+                IM_COL32(129, 155, 177, 205),
+                "Enter a topic or paste a lesson passage."
+            );
+        }
+
+        const ImVec2 microphoneButtonSize(34.0f, 34.0f);
+        const ImVec2 microphoneButtonPosition(
+            transcriptMaximum.x - microphoneButtonSize.x - 7.0f,
+            transcriptMaximum.y - microphoneButtonSize.y - 7.0f
+        );
+        ImGui::SetCursorScreenPos(microphoneButtonPosition);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
+        ImGui::PushStyleColor(
+            ImGuiCol_Button,
+            ImVec4(0.018f, 0.060f, 0.092f, 0.96f)
+        );
+        ImGui::PushStyleColor(
+            ImGuiCol_Border,
+            ImVec4(0.04f, 0.37f, 0.58f, 0.65f)
+        );
+        ImGui::BeginDisabled();
+        ImGui::Button("##LessonMicrophone", microphoneButtonSize);
+        const bool microphoneHovered = ImGui::IsItemHovered(
+            ImGuiHoveredFlags_AllowWhenDisabled
+        );
+        const ImVec2 microphoneButtonMinimum = ImGui::GetItemRectMin();
+        ImGui::EndDisabled();
+        ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar(2);
+        drawMicrophoneIcon(
+            ImGui::GetWindowDrawList(),
+            ImVec2(
+                microphoneButtonMinimum.x + microphoneButtonSize.x * 0.5f,
+                microphoneButtonPosition.y + microphoneButtonSize.y * 0.5f - 1.0f
+            )
+        );
+        if (microphoneHovered) {
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted("Microphone input is not available yet.");
+            ImGui::EndTooltip();
+        }
+        ImGui::SetCursorScreenPos(cursorAfterTranscript);
         ImGui::PopStyleColor(3);
         ImGui::PopStyleVar(2);
 
@@ -2268,7 +2353,7 @@ namespace chionia {
                 ? 0
                 : object->getPointCloud().getPointCount();
 
-            ImGui::TextColored(MUTED, "Chionia Lab v0.1.0");
+            ImGui::TextColored(MUTED, "Chionia Lab v%s", CHIONIA_VERSION);
             ImGui::SameLine();
             ImGui::TextColored(CYAN, "|");
             ImGui::SameLine();

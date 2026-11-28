@@ -144,6 +144,7 @@ namespace chionia {
         }
 
         PointCloud pointCloud("Infinity");
+        pointCloud.reserve(config.pointCount);
 
         const glm::vec3 depthAxis(0.0f, 0.0f, 1.0f);
         const double tangentStep =

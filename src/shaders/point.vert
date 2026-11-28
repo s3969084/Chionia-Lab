@@ -266,6 +266,9 @@ void main() {
             exp(-ubo.ground.z * 3.0)
         : 0.0;
 
+    // V4 keeps the original point footprint while doubling samples. The
+    // fragment shader compensates each particle's brightness for additive
+    // blending, so the extra samples can fill gaps instead of shrinking away.
     gl_PointSize = energyEffectsEnabled > 0.5
         ? 6.9 * mix(1.0, 0.76, outReflection)
         : 4.5 * mix(1.0, 0.76, outReflection);
