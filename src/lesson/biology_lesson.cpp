@@ -106,6 +106,30 @@ namespace chionia {
                 const float variation = 0.5f + 0.5f * std::sin(
                     static_cast<float>(index) * 0.17f
                 );
+                const float driftPhase =
+                    static_cast<float>(index) * GOLDEN_ANGLE;
+                const float driftVariation = 0.5f + 0.5f * std::sin(
+                    static_cast<float>(index) * 0.031f
+                );
+                const float driftRadius = 0.006f +
+                    driftVariation * 0.010f;
+                const glm::vec3 driftOffset(
+                    std::cos(driftPhase) * driftRadius,
+                    std::sin(driftPhase) * driftRadius,
+                    std::sin(driftPhase * 0.73f) * driftRadius * 0.28f
+                );
+                PointOrbitMotion drift;
+                drift.center = position - driftOffset;
+                drift.axis = glm::normalize(glm::vec3(
+                    0.08f * std::sin(driftPhase * 0.37f),
+                    0.08f * std::cos(driftPhase * 0.41f),
+                    1.0f
+                ));
+                const float driftDirection =
+                    index % 2 == 0 ? 1.0f : -1.0f;
+                drift.angularSpeed = driftDirection *
+                    (0.16f + driftVariation * 0.12f);
+
                 cloud.addPoint(
                     position,
                     glm::vec4(
@@ -113,7 +137,10 @@ namespace chionia {
                         0.003f + variation * 0.001f,
                         0.005f + variation * 0.002f,
                         0.30f
-                    )
+                    ),
+                    1.0f,
+                    {},
+                    drift
                 );
                 ++added;
             }

@@ -129,6 +129,7 @@ namespace chionia {
         std::optional<SceneObjectId> visualizationObjectBeforePresentation_;
         bool returnToInfinityAfterClear_ = false;
         bool presentationCameraInitialized_ = false;
+        bool editorLayerVisible_ = true;
         PresentationLabelMode presentationLabelMode_ =
             PresentationLabelMode::SystemObjects;
         bool cinematicCameraEnabled_ = true;

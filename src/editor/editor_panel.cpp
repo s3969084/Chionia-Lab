@@ -537,16 +537,33 @@ namespace chionia {
                 std::isfinite(screenPosition.y);
         };
 
-        for (int i = 0; i < 48; ++i) {
-            const float x = viewport->Pos.x +
-                std::fmod(static_cast<float>(i * 173 + 41), width);
-            const float y = viewport->Pos.y +
-                std::fmod(static_cast<float>(i * 83 + 19), height * 0.52f);
-            const int alpha = 16 + (i * 13) % 31;
+        const float ambientTime = static_cast<float>(ImGui::GetTime());
+        const bool cellAtmosphere =
+            activeTab_ == Tab::Presentation &&
+            activePresentationSubject_ == PresentationSubject::HumanCell;
+        for (int i = 0; i < 64; ++i) {
+            const float speed = 0.35f + static_cast<float>(i % 7) * 0.11f;
+            const float x = viewport->Pos.x + std::fmod(
+                static_cast<float>(i * 173 + 41) + ambientTime * speed,
+                width
+            );
+            const float y = viewport->Pos.y + std::fmod(
+                static_cast<float>(i * 83 + 19) +
+                    ambientTime * (0.045f + static_cast<float>(i % 5) * 0.012f),
+                height * 0.52f
+            );
+            const float pulse = 0.5f + 0.5f * std::sin(
+                ambientTime * (0.65f + static_cast<float>(i % 4) * 0.16f) +
+                static_cast<float>(i) * 1.71f
+            );
+            const int alpha = 7 + static_cast<int>(pulse * 18.0f);
+            const ImU32 color = cellAtmosphere
+                ? IM_COL32(44, 177, 197, alpha)
+                : IM_COL32(46, 129, 255, alpha);
             drawList->AddCircleFilled(
                 ImVec2(x, y),
                 (i % 5 == 0) ? 1.7f : 1.0f,
-                IM_COL32(46, 129, 255, alpha)
+                color
             );
         }
 
@@ -592,13 +609,9 @@ namespace chionia {
             }
         };
 
-        const bool presentationMode =
-            activeTab_ == Tab::Presentation ||
-            solarSystemLesson_.hasSolarSystem() ||
-            biologyLesson_.hasHumanCell() ||
-            anatomyLesson_.hasHeartCycle() ||
-            testLesson_.hasLesson();
-        if (!presentationMode) {
+        const bool showEditorLayer =
+            editorLayerVisible_ && activeTab_ == Tab::Visualization;
+        if (showEditorLayer) {
             for (int i = -9; i <= 9; ++i) {
                 drawGroundGridLine(
                     false,
@@ -1661,6 +1674,11 @@ namespace chionia {
                 SetSceneRenderSettingsCommand{settings}
             );
         }
+
+        ImGui::Separator();
+        ImGui::TextColored(CYAN, "Editor layer");
+        ImGui::Checkbox("Floor + orbit guide", &editorLayerVisible_);
+        ImGui::TextColored(MUTED, "Only shown in the Visualization tab.");
 
         ImGui::Spacing();
         drawProceduralControls();
